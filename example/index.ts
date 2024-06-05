@@ -5,7 +5,7 @@ import { opentelemetry } from '../src'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { BatchSpanProcessor, Span } from '@opentelemetry/sdk-trace-node'
 
-class CustomError extends Error {
+class NagisaError extends Error {
     constructor(message: string) {
         super(message)
     }
@@ -28,11 +28,11 @@ const app = new Elysia()
         })
     )
     .error({
-        CUSTOM_ERROR: CustomError
+        NAGISA_ERROR: NagisaError
     })
     .onError([
         function handleCustomError({ code }) {
-            if (code === 'CUSTOM_ERROR') return 'An error occurred'
+            if (code === 'NAGISA_ERROR') return 'An error occurred'
         },
         function handleUnknownError({ code }) {
             if (code === 'UNKNOWN') return 'An error occurred'
@@ -69,7 +69,7 @@ const app = new Elysia()
                 await Bun.sleep(25)
 
                 if (response === 'Hello Elysia')
-                    throw new CustomError('An error occurred')
+                    throw new NagisaError('Where teapot?')
             }
         }
     )
