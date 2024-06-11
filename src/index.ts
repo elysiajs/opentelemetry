@@ -7,7 +7,8 @@ import {
     type ContextManager,
     type Context,
     type SpanOptions,
-    type Span
+    type Span,
+    type Attributes
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -23,7 +24,7 @@ type OpenTeleMetryOptions = NonNullable<
  * For best practice, you should be using preload OpenTelemetry SDK if possible
  * however, this is a simple way to initialize OpenTelemetry SDK
  */
-interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
+export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
     contextManager?: ContextManager
 }
 
@@ -101,7 +102,8 @@ export const opentelemetry = ({
             startSpan(name: string, options?: SpanOptions, context?: Context) {
                 return tracer.startSpan(name, options, context)
             },
-            startActiveSpan: tracer.startActiveSpan
+            startActiveSpan: tracer.startActiveSpan,
+            setAttributes(attributes: Attributes) {}
         })
         .trace(
             { as: 'global' },
@@ -197,7 +199,10 @@ export const opentelemetry = ({
                                 createContext(parent)
                             )
                         },
-                        startActiveSpan: tracer.startActiveSpan
+                        startActiveSpan: tracer.startActiveSpan,
+                        setAttributes(attributes: Attributes) {
+                            rootSpan.setAttributes(attributes)
+                        }
                     }
 
                     const attributes: Record<string, string | number> = {
@@ -241,7 +246,14 @@ export const opentelemetry = ({
                     onAfterResponse((event) => {
                         inspect('afterResponse')(event)
 
-                        const { query, params, cookie, body, request } = context
+                        const {
+                            query,
+                            params,
+                            cookie,
+                            body,
+                            request,
+                            headers: parsedHeaders
+                        } = context
 
                         if (query)
                             attributes['request.query'] = JSON.stringify(query)
@@ -250,9 +262,15 @@ export const opentelemetry = ({
                             attributes['request.params'] =
                                 JSON.stringify(params)
 
-                        let headers = request.headers?.toJSON() ?? undefined
+                        let headers =
+                            parsedHeaders ??
+                            // @ts-ignore
+                            request.headers?.toJSON() ??
+                            undefined
 
-                        if (!headers) {
+                        // @ts-ignore request.headers.toJSON is only available in Bun
+                        // This will reduce force creation of Request for external adapter
+                        if (!headers && request.headers.toJSON) {
                             headers = {}
 
                             for (const [key, value] of Object.entries(

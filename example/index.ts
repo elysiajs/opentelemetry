@@ -17,11 +17,11 @@ const app = new Elysia()
             spanProcessors: [
                 new BatchSpanProcessor(
                     new OTLPTraceExporter({
-                        // url: 'https://api.axiom.co/v1/traces',
-                        // headers: {
-                        //     Authorization: `Bearer ${Bun.env.AXIOM_TOKEN}`,
-                        //     'X-Axiom-Dataset': Bun.env.AXIOM_DATASET
-                        // }
+                        url: 'https://api.axiom.co/v1/traces',
+                        headers: {
+                            Authorization: `Bearer ${Bun.env.AXIOM_TOKEN}`,
+                            'X-Axiom-Dataset': Bun.env.AXIOM_DATASET
+                        }
                     })
                 )
             ]
