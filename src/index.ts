@@ -28,6 +28,31 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
     contextManager?: ContextManager
 }
 
+type ActiveSpanArgs<
+    F extends (span: Span) => unknown = (span: Span) => unknown
+> =
+    | [name: string, fn: F]
+    | [name: string, options: SpanOptions, fn: F]
+    | [name: string, options: SpanOptions, context: Context, fn: F]
+
+const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
+    function (span: Span) {
+        const result = fn(span)
+
+        // @ts-ignore
+        if (result instanceof Promise || typeof result?.then === 'function')
+            // @ts-ignore
+            return result.then((result) => {
+                if (span.isRecording()) span.end()
+
+                return result
+            })
+
+        if (span.isRecording()) span.end()
+
+        return result
+    }
+
 const createContext = (parent: Span) => ({
     getValue() {
         return parent
@@ -199,7 +224,33 @@ export const opentelemetry = ({
                                 createContext(parent)
                             )
                         },
-                        startActiveSpan: tracer.startActiveSpan,
+                        startActiveSpan(...args: ActiveSpanArgs) {
+                            switch (args.length) {
+                                case 2:
+                                    return tracer.startActiveSpan(
+                                        args[0],
+                                        {},
+                                        createContext(parent),
+                                        createActiveSpanHandler(args[1])
+                                    )
+
+                                case 3:
+                                    return tracer.startActiveSpan(
+                                        args[0],
+                                        args[1],
+                                        createContext(parent),
+                                        createActiveSpanHandler(args[2])
+                                    )
+
+                                case 4:
+                                    return tracer.startActiveSpan(
+                                        args[0],
+                                        args[1],
+                                        args[2],
+                                        createActiveSpanHandler(args[3])
+                                    )
+                            }
+                        },
                         setAttributes(attributes: Attributes) {
                             rootSpan.setAttributes(attributes)
                         }
