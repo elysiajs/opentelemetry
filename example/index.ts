@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { treaty } from '@elysiajs/eden'
 
 import { opentelemetry } from '../src'
@@ -11,7 +11,7 @@ class NagisaError extends Error {
     }
 }
 
-const app = new Elysia()
+const app = new Elysia({ precompile: true })
     .use(
         opentelemetry({
             spanProcessors: [
@@ -54,8 +54,8 @@ const app = new Elysia()
             span.end()
         }
     ])
-    .get(
-        '/',
+    .post(
+        '/id/:id',
         async ({ trace, query }) => {
             return trace.startActiveSpan('handle.sleep.0', async (span) => {
                 await Bun.sleep(100)
@@ -70,17 +70,27 @@ const app = new Elysia()
 
                 if (response === 'Hello Elysia')
                     throw new NagisaError('Where teapot?')
-            }
+            },
+            body: t.Object({
+                name: t.String()
+            })
         }
     )
     .listen(3000)
 
+console.log(app.routes[0].composed?.toString())
+
 const api = treaty(app)
 
-const { data, headers, error, status } = await api.index.get({
-    query: {
-        hello: 'world'
+const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
+    {
+        name: 'saltyaom'
+    },
+    {
+        query: {
+            hello: 'world'
+        }
     }
-})
+)
 
 console.log(error?.value)

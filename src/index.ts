@@ -1,4 +1,4 @@
-import { Elysia, type TraceEvent, TraceProcess } from 'elysia'
+import { Elysia, type TraceEvent, TraceProcess, StatusMap } from 'elysia'
 import {
     trace,
     createContextKey,
@@ -13,6 +13,35 @@ import {
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
+
+const headerHasToJSON = typeof new Headers().toJSON === 'function'
+
+const parseNumericString = (message: string): number | null => {
+    if (message.length < 16) {
+        if (message.length === 0) return null
+
+        const length = Number(message)
+        if (Number.isNaN(length)) return null
+
+        return length
+    }
+
+    // if 16 digit but less then 9,007,199,254,740,991 then can be parsed
+    if (message.length === 16) {
+        const number = Number(message)
+
+        if (
+            number.toString() !== message ||
+            message.trim().length === 0 ||
+            Number.isNaN(number)
+        )
+            return null
+
+        return number
+    }
+
+    return null
+}
 
 type OpenTeleMetryOptions = NonNullable<
     ConstructorParameters<typeof NodeSDK>[0]
@@ -144,220 +173,439 @@ export const opentelemetry = ({
                 onAfterResponse,
                 onMapResponse,
                 context,
-                set,
                 context: {
                     path,
                     request: { method }
                 }
             }) => {
-                tracer.startActiveSpan('request', async (rootSpan) => {
-                    let parent = rootSpan
+                tracer.startActiveSpan(
+                    `${method} ${path}`,
+                    async (rootSpan) => {
+                        let parent = rootSpan
 
-                    function inspect(name: TraceEvent) {
-                        return function ({
-                            onEvent,
-                            total,
-                            onStop
-                        }: TraceProcess<'begin', true>) {
-                            if (total === 0) return
+                        function inspect(name: TraceEvent) {
+                            return function ({
+                                onEvent,
+                                total,
+                                onStop
+                            }: TraceProcess<'begin', true>) {
+                                if (total === 0) return
 
-                            tracer.startActiveSpan(
-                                name,
-                                {},
-                                createContext(rootSpan),
-                                (event) => {
-                                    onEvent(({ name, onStop }) => {
-                                        tracer.startActiveSpan(
-                                            name,
+                                tracer.startActiveSpan(
+                                    name,
+                                    {},
+                                    createContext(rootSpan),
+                                    (event) => {
+                                        onEvent(({ name, onStop }) => {
+                                            tracer.startActiveSpan(
+                                                name,
+                                                {},
+                                                createContext(event),
+                                                (span) => {
+                                                    parent = span
+                                                    onStop(({ error }) => {
+                                                        if (error) {
+                                                            span.setAttributes({
+                                                                'error.type':
+                                                                    error
+                                                                        .constructor
+                                                                        ?.name ??
+                                                                    error.name,
+                                                                'error.stack':
+                                                                    error.stack
+                                                            })
+                                                        }
+
+                                                        if (error) {
+                                                            rootSpan.setStatus({
+                                                                code: SpanStatusCode.ERROR,
+                                                                message:
+                                                                    error.message
+                                                            })
+
+                                                            span.setStatus({
+                                                                code: SpanStatusCode.ERROR,
+                                                                message:
+                                                                    error.message
+                                                            })
+                                                        } else {
+                                                            rootSpan.setStatus({
+                                                                code: SpanStatusCode.OK
+                                                            })
+
+                                                            span.setStatus({
+                                                                code: SpanStatusCode.OK
+                                                            })
+                                                        }
+
+                                                        span.end()
+                                                    })
+                                                }
+                                            )
+                                        })
+
+                                        onStop(({ error }) => {
+                                            event.end()
+                                        })
+                                    }
+                                )
+                            }
+                        }
+
+                        // @ts-ignore
+                        context.trace = {
+                            startSpan(
+                                name: string,
+                                options?: SpanOptions,
+                                context?: Context
+                            ) {
+                                return tracer.startSpan(
+                                    name,
+                                    {},
+                                    createContext(parent)
+                                )
+                            },
+                            startActiveSpan(...args: ActiveSpanArgs) {
+                                switch (args.length) {
+                                    case 2:
+                                        return tracer.startActiveSpan(
+                                            args[0],
                                             {},
-                                            createContext(event),
-                                            (span) => {
-                                                parent = span
-                                                onStop(({ error }) => {
-                                                    if (error) {
-                                                        span.setAttributes({
-                                                            'error.name':
-                                                                error
-                                                                    .constructor
-                                                                    ?.name ??
-                                                                error.name,
-                                                            'error.stack':
-                                                                error.stack
-                                                        })
-                                                    }
-
-                                                    if (error)
-                                                        span.setStatus({
-                                                            code: SpanStatusCode.ERROR,
-                                                            message:
-                                                                error.message
-                                                        })
-                                                    else
-                                                        span.setStatus({
-                                                            code: SpanStatusCode.OK
-                                                        })
-
-                                                    span.end()
-                                                })
-                                            }
+                                            createContext(parent),
+                                            createActiveSpanHandler(args[1])
                                         )
+
+                                    case 3:
+                                        return tracer.startActiveSpan(
+                                            args[0],
+                                            args[1],
+                                            createContext(parent),
+                                            createActiveSpanHandler(args[2])
+                                        )
+
+                                    case 4:
+                                        return tracer.startActiveSpan(
+                                            args[0],
+                                            args[1],
+                                            args[2],
+                                            createActiveSpanHandler(args[3])
+                                        )
+                                }
+                            },
+                            setAttributes(attributes: Attributes) {
+                                rootSpan.setAttributes(attributes)
+                            }
+                        }
+
+                        // @ts-expect-error private property
+                        const url = context.url
+                        const attributes: Record<string, string | number> = {
+                            // ? Elysia Custom attribute
+                            'http.request.id': id,
+                            'http.request.method': method,
+                            'url.path': path,
+                            'url.full': url
+                        }
+
+                        // @ts-ignore private property
+                        if (context.qi !== -1)
+                            attributes['http.request.query'] = url.slice(
+                                // @ts-ignore private property
+                                context.qi + 1
+                            )
+
+                        onRequest(inspect('request'))
+                        onParse(inspect('parse'))
+                        onTransform(inspect('transform'))
+                        onBeforeHandle(inspect('beforeHandle'))
+
+                        onHandle(({ onStop }) => {
+                            const span = tracer.startSpan(
+                                'handle',
+                                {},
+                                createContext(rootSpan)
+                            )
+
+                            parent = span
+                            onStop(({ error }) => {
+                                if (error) {
+                                    rootSpan.setStatus({
+                                        code: SpanStatusCode.ERROR,
+                                        message: error.message
                                     })
 
-                                    onStop(({ error }) => {
-                                        event.end()
+                                    span.setStatus({
+                                        code: SpanStatusCode.ERROR,
+                                        message: error.message
+                                    })
+                                } else {
+                                    rootSpan.setStatus({
+                                        code: SpanStatusCode.OK
+                                    })
+
+                                    span.setStatus({
+                                        code: SpanStatusCode.OK
                                     })
                                 }
-                            )
-                        }
-                    }
 
-                    // @ts-ignore
-                    context.trace = {
-                        startSpan(
-                            name: string,
-                            options?: SpanOptions,
-                            context?: Context
-                        ) {
-                            return tracer.startSpan(
-                                name,
-                                {},
-                                createContext(parent)
-                            )
-                        },
-                        startActiveSpan(...args: ActiveSpanArgs) {
-                            switch (args.length) {
-                                case 2:
-                                    return tracer.startActiveSpan(
-                                        args[0],
-                                        {},
-                                        createContext(parent),
-                                        createActiveSpanHandler(args[1])
-                                    )
+                                span.end()
+                            })
+                        })
 
-                                case 3:
-                                    return tracer.startActiveSpan(
-                                        args[0],
-                                        args[1],
-                                        createContext(parent),
-                                        createActiveSpanHandler(args[2])
-                                    )
+                        onAfterHandle(inspect('afterHandle'))
+                        onError(inspect('error'))
+                        onMapResponse(inspect('mapResponse'))
 
-                                case 4:
-                                    return tracer.startActiveSpan(
-                                        args[0],
-                                        args[1],
-                                        args[2],
-                                        createActiveSpanHandler(args[3])
+                        onAfterResponse((event) => {
+                            inspect('afterResponse')(event)
+
+                            const {
+                                query,
+                                params,
+                                cookie,
+                                body,
+                                request,
+                                headers: parsedHeaders,
+                                response
+                            } = context
+
+                            // @ts-expect-error private property
+                            if (context.route)
+                                // @ts-expect-error private property
+                                attributes['http.route'] = context.route
+
+                            switch (typeof response) {
+                                case 'object':
+                                    if (response instanceof Response) {
+                                        // Unable to access as async, skip
+                                    } else if (response instanceof Uint8Array)
+                                        attributes['http.response.body.size'] =
+                                            response.length
+                                    else if (response instanceof ArrayBuffer)
+                                        attributes['http.response.body.size'] =
+                                            response.byteLength
+                                    else if (response instanceof Blob)
+                                        attributes['http.response.body.size'] =
+                                            response.size
+                                    else {
+                                        const value = JSON.stringify(response)
+
+                                        attributes['http.response.body'] = value
+                                        attributes['http.response.body.size'] =
+                                            value.length
+                                    }
+
+                                    break
+
+                                default:
+                                    if (
+                                        response === undefined ||
+                                        response === null
                                     )
+                                        attributes[
+                                            'http.response.body.size'
+                                        ] = 0
+                                    else {
+                                        const value = response.toString()
+
+                                        attributes['http.response.body'] = value
+                                        attributes['http.response.body.size'] =
+                                            value.length
+                                    }
                             }
-                        },
-                        setAttributes(attributes: Attributes) {
+
+                            {
+                                let status = context.set.status
+                                if (!status) status = 200
+                                else if (typeof status === 'string')
+                                    status = StatusMap[status] ?? 200
+
+                                attributes['http.response.status_code'] = status
+                            }
+
+                            /**
+                             * ? Caution: This is not a standard way to get content-length
+                             *
+                             * As state in OpenTelemetry specification:
+                             * The size of the request payload body in bytes.
+                             * This is the number of bytes transferred excluding headers and is often,
+                             * but not always, present as the Content-Length header.
+                             * For requests using transport encoding, this should be the compressed size.
+                             **/
+                            {
+                                let contentLength =
+                                    request.headers.get('content-length')
+
+                                if (contentLength) {
+                                    const number =
+                                        parseNumericString(contentLength)
+
+                                    if (number)
+                                        attributes[
+                                            'http.request_content_length'
+                                        ] = number
+                                }
+                            }
+
+                            {
+                                const userAgent =
+                                    request.headers.get('User-Agent')
+
+                                if (userAgent)
+                                    attributes['user_agent.original'] =
+                                        userAgent
+                            }
+
+                            const protocolSeparator = url.indexOf('://')
+                            if (protocolSeparator > 0)
+                                attributes['server.protocol'] = url.slice(
+                                    0,
+                                    protocolSeparator
+                                )
+
+                            const server = context.server
+                            if (server) {
+                                attributes['server.port'] = server.port
+                                attributes['server.address'] =
+                                    server.url.hostname
+                                attributes['server.address'] =
+                                    server.url.hostname
+                            }
+
+                            let headers
+
+                            {
+                                let hasHeaders
+                                let _headers:
+                                    | [string, string | string[] | undefined][]
+                                    | IterableIterator<[string, string]>
+
+                                if (context.headers) {
+                                    hasHeaders = true
+                                    headers = context.headers
+                                    _headers = Object.entries(context.headers)
+                                } else if ((hasHeaders = headerHasToJSON)) {
+                                    headers = request.headers.toJSON()
+                                    _headers = Object.entries(headers)
+                                } else {
+                                    headers = {}
+                                    _headers = request.headers.entries()
+                                }
+
+                                for (let [key, value] of _headers) {
+                                    key = key.toLowerCase()
+
+                                    if (hasHeaders) {
+                                        if (typeof value === 'object')
+                                            // Handle Set-Cookie array
+                                            attributes[
+                                                `http.request.header.${key}`
+                                            ] = JSON.stringify(value)
+                                        else if (value !== undefined)
+                                            attributes[
+                                                `http.request.header.${key}`
+                                            ] = value
+
+                                        continue
+                                    }
+
+                                    if (typeof value === 'object')
+                                        // Handle Set-Cookie array
+                                        headers[key] = attributes[
+                                            `http.request.header.${key}`
+                                        ] = JSON.stringify(value)
+                                    else if (value !== undefined)
+                                        headers[key] = attributes[
+                                            `http.request.header.${key}`
+                                        ] = value
+                                }
+                            }
+
+                            {
+                                let headers
+                                if (context.set.headers instanceof Headers) {
+                                    if (headerHasToJSON)
+                                        headers = Object.entries(
+                                            context.set.headers.toJSON()
+                                        )
+                                    else headers = context.set.headers.entries()
+                                } else
+                                    headers = Object.entries(
+                                        context.set.headers
+                                    )
+
+                                for (let [key, value] of headers) {
+                                    key = key.toLowerCase()
+
+                                    if (typeof value === 'object')
+                                        attributes[
+                                            `http.response.header.${key}`
+                                        ] = JSON.stringify(value)
+                                    else
+                                        attributes[
+                                            `http.response.header.${key}`
+                                        ] = value
+                                }
+                            }
+
+                            // @ts-expect-error available on Elysia IP plugin
+                            if (context.ip)
+                                // @ts-expect-error
+                                attributes['client.address'] = context.ip
+                            else {
+                                const ip = server?.requestIP(request)
+
+                                if (ip)
+                                    attributes['client.address'] = ip.address
+                            }
+
+                            // ? Elysia Custom attribute
+                            if (cookie) {
+                                const _cookie = <Record<string, string>>{}
+
+                                for (const [key, value] of Object.entries(
+                                    cookie
+                                ))
+                                    _cookie[key] = JSON.stringify(value)
+
+                                attributes['http.request.cookie'] =
+                                    JSON.stringify(_cookie)
+                            }
+
+                            if (body !== undefined && body !== null) {
+                                const value =
+                                    typeof body === 'object'
+                                        ? JSON.stringify(body)
+                                        : body.toString()
+
+                                attributes['http.request.body'] = value
+
+                                if (typeof body === 'object') {
+                                    if (body instanceof Uint8Array)
+                                        attributes['http.request.body.size'] =
+                                            body.length
+                                    else if (body instanceof ArrayBuffer)
+                                        attributes['http.request.body.size'] =
+                                            body.byteLength
+                                    else if (body instanceof Blob)
+                                        attributes['http.request.body.size'] =
+                                            body.size
+
+                                    attributes['http.request.body.size'] =
+                                        value.length
+                                } else
+                                    attributes['http.request.body.size'] =
+                                        value.length
+                            }
+
                             rootSpan.setAttributes(attributes)
-                        }
-                    }
 
-                    const attributes: Record<string, string | number> = {
-                        'request.id': id,
-                        'request.path': path,
-                        'request.method': method
-                    }
-
-                    onRequest(inspect('request'))
-                    onParse(inspect('parse'))
-                    onTransform(inspect('transform'))
-                    onBeforeHandle(inspect('beforeHandle'))
-
-                    onHandle(({ onStop }) => {
-                        const span = tracer.startSpan(
-                            'handle',
-                            {},
-                            createContext(rootSpan)
-                        )
-
-                        parent = span
-                        onStop(({ error }) => {
-                            if (error)
-                                span.setStatus({
-                                    code: SpanStatusCode.ERROR,
-                                    message: error.message
-                                })
-                            else
-                                span.setStatus({
-                                    code: SpanStatusCode.OK
-                                })
-
-                            span.end()
+                            event.onStop(() => {
+                                rootSpan.end()
+                            })
                         })
-                    })
-
-                    onAfterHandle(inspect('afterHandle'))
-                    onError(inspect('error'))
-                    onMapResponse(inspect('mapResponse'))
-
-                    onAfterResponse((event) => {
-                        inspect('afterResponse')(event)
-
-                        const {
-                            query,
-                            params,
-                            cookie,
-                            body,
-                            request,
-                            headers: parsedHeaders
-                        } = context
-
-                        if (query)
-                            attributes['request.query'] = JSON.stringify(query)
-
-                        if (params)
-                            attributes['request.params'] =
-                                JSON.stringify(params)
-
-                        let headers =
-                            parsedHeaders ??
-                            // @ts-ignore
-                            request.headers?.toJSON() ??
-                            undefined
-
-                        // @ts-ignore request.headers.toJSON is only available in Bun
-                        // This will reduce force creation of Request for external adapter
-                        if (!headers && request.headers.toJSON) {
-                            headers = {}
-
-                            for (const [key, value] of Object.entries(
-                                request.headers
-                            )) {
-                                // ? Some value maybe array
-                                headers[key] =
-                                    typeof value === 'object'
-                                        ? JSON.stringify(value)
-                                        : value
-                            }
-                        }
-
-                        attributes['request.headers'] = JSON.stringify(headers)
-
-                        if (cookie)
-                            for (const [key, value] of Object.entries(cookie))
-                                if (key)
-                                    attributes[`cookie.${key}`] =
-                                        typeof value.value === 'object'
-                                            ? JSON.stringify(value.value)
-                                            : value.value
-
-                        if (body !== undefined && body !== null)
-                            attributes.body =
-                                typeof body === 'object'
-                                    ? JSON.stringify(body)
-                                    : body.toString()
-
-                        rootSpan.setAttributes(attributes)
-
-                        event.onStop(() => {
-                            rootSpan.end()
-                        })
-                    })
-                })
+                    }
+                )
             }
         )
 }
