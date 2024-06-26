@@ -13,8 +13,8 @@ import {
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
-// import type { Tracer } from '@opentelemetry/sdk-trace-node'
 
+// @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
 
 const parseNumericString = (message: string): number | null => {
