@@ -491,6 +491,7 @@ export const opentelemetry = ({
                                     headers = context.headers
                                     _headers = Object.entries(context.headers)
                                 } else if ((hasHeaders = headerHasToJSON)) {
+                                    // @ts-ignore bun only
                                     headers = request.headers.toJSON()
                                     _headers = Object.entries(headers)
                                 } else {
@@ -541,6 +542,7 @@ export const opentelemetry = ({
                                 if (context.set.headers instanceof Headers) {
                                     if (headerHasToJSON)
                                         headers = Object.entries(
+                                            // @ts-ignore bun only
                                             context.set.headers.toJSON()
                                         )
                                     else headers = context.set.headers.entries()
@@ -559,7 +561,7 @@ export const opentelemetry = ({
                                     else
                                         attributes[
                                             `http.response.header.${key}`
-                                        ] = value
+                                        ] = value as string
                                 }
                             }
 
