@@ -1,4 +1,4 @@
-import { Elysia, type TraceEvent, TraceProcess, StatusMap } from 'elysia'
+import { Elysia, type TraceEvent, type TraceProcess, StatusMap } from 'elysia'
 import {
     trace,
     createContextKey,
@@ -13,6 +13,7 @@ import {
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
+// import type { Tracer } from '@opentelemetry/sdk-trace-node'
 
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
 
@@ -191,6 +192,8 @@ export const opentelemetry = ({
                             }: TraceProcess<'begin', true>) {
                                 if (total === 0) return
 
+                                // console.log(`[${name}]: begin`)
+
                                 tracer.startActiveSpan(
                                     name,
                                     {},
@@ -205,6 +208,12 @@ export const opentelemetry = ({
                                                     parent = span
                                                     onStop(({ error }) => {
                                                         if (error) {
+                                                            rootSpan.setStatus({
+                                                                code: SpanStatusCode.ERROR,
+                                                                message:
+                                                                    error.message
+                                                            })
+
                                                             span.setAttributes({
                                                                 'error.type':
                                                                     error
@@ -214,20 +223,16 @@ export const opentelemetry = ({
                                                                 'error.stack':
                                                                     error.stack
                                                             })
-                                                        }
-
-                                                        if (error) {
-                                                            rootSpan.setStatus({
-                                                                code: SpanStatusCode.ERROR,
-                                                                message:
-                                                                    error.message
-                                                            })
 
                                                             span.setStatus({
                                                                 code: SpanStatusCode.ERROR,
                                                                 message:
                                                                     error.message
                                                             })
+
+                                                            // Early exit from event
+                                                            // console.log("Panic")
+                                                            event.end()
                                                         } else {
                                                             rootSpan.setStatus({
                                                                 code: SpanStatusCode.OK
@@ -246,6 +251,7 @@ export const opentelemetry = ({
 
                                         onStop(({ error }) => {
                                             event.end()
+                                            // console.log(`[${name}]: end`)
                                         })
                                     }
                                 )
@@ -309,9 +315,16 @@ export const opentelemetry = ({
 
                         // @ts-ignore private property
                         if (context.qi !== -1)
-                            attributes['http.request.query'] = url.slice(
+                            attributes['url.query'] = url.slice(
                                 // @ts-ignore private property
                                 context.qi + 1
+                            )
+
+                        const protocolSeparator = url.indexOf('://')
+                        if (protocolSeparator > 0)
+                            attributes['url.scheme'] = url.slice(
+                                0,
+                                protocolSeparator
                             )
 
                         onRequest(inspect('request'))
@@ -456,13 +469,6 @@ export const opentelemetry = ({
                                         userAgent
                             }
 
-                            const protocolSeparator = url.indexOf('://')
-                            if (protocolSeparator > 0)
-                                attributes['server.protocol'] = url.slice(
-                                    0,
-                                    protocolSeparator
-                                )
-
                             const server = context.server
                             if (server) {
                                 attributes['server.port'] = server.port
@@ -496,6 +502,8 @@ export const opentelemetry = ({
                                     key = key.toLowerCase()
 
                                     if (hasHeaders) {
+                                        if (key === 'user-agent') continue
+
                                         if (typeof value === 'object')
                                             // Handle Set-Cookie array
                                             attributes[
@@ -514,10 +522,17 @@ export const opentelemetry = ({
                                         headers[key] = attributes[
                                             `http.request.header.${key}`
                                         ] = JSON.stringify(value)
-                                    else if (value !== undefined)
+                                    else if (value !== undefined) {
+                                        if (key === 'user-agent') {
+                                            headers[key] = value
+
+                                            continue
+                                        }
+
                                         headers[key] = attributes[
                                             `http.request.header.${key}`
                                         ] = value
+                                    }
                                 }
                             }
 
@@ -601,6 +616,12 @@ export const opentelemetry = ({
                             rootSpan.setAttributes(attributes)
 
                             event.onStop(() => {
+                                // console.log("End")
+
+                                rootSpan.updateName(
+                                    // @ts-ignore private property
+                                    `${method} ${context.route}`
+                                )
                                 rootSpan.end()
                             })
                         })
