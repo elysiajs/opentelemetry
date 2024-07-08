@@ -8,7 +8,8 @@ import {
     type Context,
     type SpanOptions,
     type Span,
-    type Attributes
+    type Attributes,
+    TraceAPI
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -58,7 +59,7 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
     contextManager?: ContextManager
 }
 
-type ActiveSpanArgs<
+export type ActiveSpanArgs<
     F extends (span: Span) => unknown = (span: Span) => unknown
 > =
     | [name: string, fn: F]
@@ -102,6 +103,10 @@ const isNotEmpty = (obj?: Object) => {
 
     return false
 }
+
+export type Tracer = ReturnType<TraceAPI['getTracer']>
+export type StartSpan = Tracer['startSpan']
+export type StartActiveSpan = Tracer['startActiveSpan']
 
 export const opentelemetry = ({
     serviceName = 'Elysia',
