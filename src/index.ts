@@ -13,7 +13,6 @@ import {
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
-import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 
 // @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
@@ -623,7 +622,7 @@ export const opentelemetry = ({
 							attributes['http.request.body.size'] = value.length
 					}
 
-					// rootSpan.setAttributes(attributes)
+					rootSpan.setAttributes(attributes)
 
 					event.onStop(() => {
 						setParent(rootSpan)

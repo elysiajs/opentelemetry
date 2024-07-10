@@ -9,6 +9,8 @@ import {
 	ConsoleSpanExporter,
 	Span
 } from '@opentelemetry/sdk-trace-node'
+import { Resource } from '@opentelemetry/resources'
+import { SEMRESATTRS_SERVICE_NAME  } from '@opentelemetry/semantic-conventions'
 
 import { yoga } from '@elysiajs/graphql-yoga'
 import { useOpenTelemetry } from '@envelop/opentelemetry'
@@ -56,9 +58,18 @@ class NagisaError extends Error {
 	}
 }
 
+const plugin = () => (app: Elysia) => app.get('/', () => {
+	console.log(otel.context.active())
+
+	return 'a'
+})
+
 const app = new Elysia()
 	.use(
 		opentelemetry({
+			resource: new Resource({
+				[SEMRESATTRS_SERVICE_NAME]: 'Elysia'
+			}),
 			spanProcessors: [
 				new BatchSpanProcessor(
 					new OTLPTraceExporter({
@@ -136,7 +147,8 @@ const app = new Elysia()
 				useOpenTelemetry({
 					resolvers: true, // Tracks resolvers calls, and tracks resolvers thrown errors
 					variables: true, // Includes the operation variables values as part of the metadata collected
-					result: true // Includes execution result object as part of the metadata collected
+					result: true, // Includes execution result object as part of the metadata collected
+					document: true // Includes the operation document as part of the metadata collected
 				})
 			],
 			resolvers: {
@@ -152,6 +164,7 @@ const app = new Elysia()
 			}
 		})
 	)
+	.use(plugin())
 	.listen(3000)
 
 // const api = treaty(app)
