@@ -1,6 +1,6 @@
 {
   "name": "@elysiajs/opentelemetry",
-  "version": "1.1.0-exp.5",
+  "version": "1.1.0-rc.0",
   "license": "MIT",
   "scripts": {
     "dev": "bun run --watch example/index.ts",
@@ -38,11 +38,14 @@
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.48.0",
     "@opentelemetry/sdk-node": "^0.52.1",
-    "elysia": "^1.1.0-exp.23"
+    "elysia": "^1.1.0-rc.2"
   },
   "devDependencies": {
     "@axiomhq/js": "^1.0.0-rc.3",
     "@elysiajs/eden": "^1.0.11",
+    "@elysiajs/graphql-yoga": "^1.0.3",
+    "@envelop/core": "^5.0.1",
+    "@envelop/opentelemetry": "^6.3.1",
     "@opentelemetry/context-async-hooks": "^1.24.1",
     "@opentelemetry/exporter-jaeger": "^1.23.0",
     "@opentelemetry/exporter-metrics-otlp-proto": "^0.50.0",
@@ -56,6 +59,6 @@
     "tsup": "^8.1.0"
   },
   "peerDependencies": {
-    "elysia": ">= 1.1.0-exp.23"
+    "elysia": ">= 1.1.0-rc.2"
   }
 }
