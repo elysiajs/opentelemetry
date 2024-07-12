@@ -109,7 +109,38 @@ export type StartActiveSpan = Tracer['startActiveSpan']
 
 const contextKeySpan = Symbol.for('OpenTelemetry Context Key SPAN')
 
-export const getTracer = () => trace.getTracer('Elysia')
+export const getTracer = (): ReturnType<TraceAPI['getTracer']> => {
+	const tracer = trace.getTracer('Elysia')
+
+	return {
+		...tracer,
+		startSpan: tracer.startSpan,
+		startActiveSpan(...args: ActiveSpanArgs) {
+			switch (args.length) {
+				case 2:
+					return tracer.startActiveSpan(
+						args[0],
+						createActiveSpanHandler(args[1])
+					)
+
+				case 3:
+					return tracer.startActiveSpan(
+						args[0],
+						args[1],
+						createActiveSpanHandler(args[2])
+					)
+
+				case 4:
+					return tracer.startActiveSpan(
+						args[0],
+						args[1],
+						args[2],
+						createActiveSpanHandler(args[3])
+					)
+			}
+		}
+	}
+}
 
 export const opentelemetry = ({
 	serviceName = 'Elysia',
@@ -634,9 +665,12 @@ export const opentelemetry = ({
 						rootSpan.end()
 
 						// Necessary for preventing GC
-						setTimeout(() => {
-							rootSpan
-						}, 20 * 1000 * 1000)
+						setTimeout(
+							() => {
+								rootSpan
+							},
+							20 * 1000 * 1000
+						)
 					})
 				})
 			}

@@ -10,7 +10,7 @@ import {
 	Span
 } from '@opentelemetry/sdk-trace-node'
 import { Resource } from '@opentelemetry/resources'
-import { SEMRESATTRS_SERVICE_NAME  } from '@opentelemetry/semantic-conventions'
+import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions'
 
 import { yoga } from '@elysiajs/graphql-yoga'
 import { useOpenTelemetry } from '@envelop/opentelemetry'
@@ -58,11 +58,12 @@ class NagisaError extends Error {
 	}
 }
 
-const plugin = () => (app: Elysia) => app.get('/', () => {
-	console.log(otel.context.active())
+const plugin = () => (app: Elysia) =>
+	app.get('/', () => {
+		console.log(otel.context.active())
 
-	return 'a'
-})
+		return 'a'
+	})
 
 const app = new Elysia()
 	.use(
@@ -144,12 +145,15 @@ const app = new Elysia()
 		yoga({
 			typeDefs,
 			plugins: [
-				useOpenTelemetry({
-					resolvers: true, // Tracks resolvers calls, and tracks resolvers thrown errors
-					variables: true, // Includes the operation variables values as part of the metadata collected
-					result: true, // Includes execution result object as part of the metadata collected
-					document: true // Includes the operation document as part of the metadata collected
-				})
+				useOpenTelemetry(
+					{
+						resolvers: true, // Tracks resolvers calls, and tracks resolvers thrown errors
+						variables: true, // Includes the operation variables values as part of the metadata collected
+						result: true, // Includes execution result object as part of the metadata collected
+						document: true // Includes the operation document as part of the metadata collected
+					},
+					otel.trace.getTracerProvider()
+				)
 			],
 			resolvers: {
 				Query: {

@@ -24,3 +24,4 @@ tsconfig.dts.json
 .env
 .env.local
 build.ts
+src
