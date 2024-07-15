@@ -68,9 +68,6 @@ const plugin = () => (app: Elysia) =>
 const app = new Elysia()
 	.use(
 		opentelemetry({
-			resource: new Resource({
-				[SEMRESATTRS_SERVICE_NAME]: 'Elysia'
-			}),
 			spanProcessors: [
 				new BatchSpanProcessor(
 					new OTLPTraceExporter({
@@ -127,11 +124,11 @@ const app = new Elysia()
 			)
 		},
 		{
-			async afterHandle({ response }) {
+			async afterHandle({ response, error }) {
 				await Bun.sleep(25)
 
 				if (response === 'Hello Elysia')
-					throw new NagisaError('Where teapot?')
+					return new NagisaError('Where teapot?')
 			},
 			body: t.Object({
 				name: t.String()
@@ -171,22 +168,22 @@ const app = new Elysia()
 	.use(plugin())
 	.listen(3000)
 
-// const api = treaty(app)
+const api = treaty(app)
 
 // await api.context
 // 	.get()
 // 	.then((x) => x.data)
 // 	.then(console.log)
 
-// const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
-// 	{
-// 		name: 'saltyaom'
-// 	},
-// 	{
-// 		query: {
-// 			hello: 'world'
-// 		}
-// 	}
-// )
+const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
+	{
+		name: 'saltyaom'
+	},
+	{
+		query: {
+			hello: 'world'
+		}
+	}
+)
 
 // console.log(error?.value)

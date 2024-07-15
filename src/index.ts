@@ -67,20 +67,36 @@ export type ActiveSpanArgs<
 
 const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 	function (span: Span) {
-		const result = fn(span)
+		try {
+			const result = fn(span)
 
-		// @ts-ignore
-		if (result instanceof Promise || typeof result?.then === 'function')
 			// @ts-ignore
-			return result.then((result) => {
-				if (span.isRecording()) span.end()
+			if (result instanceof Promise || typeof result?.then === 'function')
+				// @ts-ignore
+				return result.then((result) => {
+					if (span.isRecording()) span.end()
 
-				return result
+					return result
+				})
+
+			if (span.isRecording()) span.end()
+
+			return result
+		} catch (error) {
+			if (!span.isRecording()) throw error
+
+			const err = error as Error
+
+			span.setStatus({
+				code: SpanStatusCode.ERROR,
+				message: err?.message
 			})
 
-		if (span.isRecording()) span.end()
+			span.recordException(err)
+			span.end()
 
-		return result
+			throw error
+		}
 	}
 
 const createContext = (parent: Span) => ({
@@ -114,7 +130,9 @@ export const getTracer = (): ReturnType<TraceAPI['getTracer']> => {
 
 	return {
 		...tracer,
-		startSpan: tracer.startSpan,
+		startSpan(name: string, options?: SpanOptions, context?: Context) {
+			return tracer.startSpan(name, options, context)
+		},
 		startActiveSpan(...args: ActiveSpanArgs) {
 			switch (args.length) {
 				case 2:
