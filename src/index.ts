@@ -491,9 +491,7 @@ export const opentelemetry = ({
 						response
 					} = context
 
-					// @ts-expect-error private property
 					if (context.route)
-						// @ts-expect-error private property
 						attributes['http.route'] = context.route
 
 					switch (typeof response) {
