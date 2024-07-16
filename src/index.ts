@@ -160,7 +160,7 @@ export const getTracer = (): ReturnType<TraceAPI['getTracer']> => {
 	}
 }
 
-export function startActiveSpan(...args: ActiveSpanArgs) {
+export const startActiveSpan: StartActiveSpan = (...args: ActiveSpanArgs) => {
 	const tracer = getTracer()
 
 	switch (args.length) {
