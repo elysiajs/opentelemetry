@@ -160,6 +160,35 @@ export const getTracer = (): ReturnType<TraceAPI['getTracer']> => {
 	}
 }
 
+export function startActiveSpan(...args: ActiveSpanArgs) {
+	const tracer = getTracer()
+
+	switch (args.length) {
+		case 2:
+			return tracer.startActiveSpan(
+				args[0],
+				createActiveSpanHandler(args[1])
+			)
+
+		case 3:
+			return tracer.startActiveSpan(
+				args[0],
+				args[1],
+				createActiveSpanHandler(args[2])
+			)
+
+		case 4:
+			return tracer.startActiveSpan(
+				args[0],
+				args[1],
+				args[2],
+				createActiveSpanHandler(args[3])
+			)
+	}
+}
+
+export const record = startActiveSpan
+
 export const opentelemetry = ({
 	serviceName = 'Elysia',
 	instrumentations,
