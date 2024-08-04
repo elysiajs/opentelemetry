@@ -285,6 +285,8 @@ export const opentelemetry = ({
 				}
 			}) => {
 				const rootSpan = trace.getActiveSpan()!
+				if(!rootSpan) return
+
 				let parent = rootSpan
 
 				function setParent(span: Span) {
