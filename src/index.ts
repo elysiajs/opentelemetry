@@ -8,7 +8,8 @@ import {
 	type SpanOptions,
 	type Span,
 	type Attributes,
-	TraceAPI
+	TraceAPI,
+	ProxyTracer
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -197,11 +198,7 @@ export const opentelemetry = ({
 }: ElysiaOpenTelemetryOptions = {}) => {
 	let tracer = trace.getTracer(serviceName)
 
-	const isInitialized = !(
-		'_getTracer' in tracer &&
-		// @ts-expect-error
-		tracer._getTracer()?.constructor?.name === 'NoopTracer'
-	)
+	const isInitialized = tracer instanceof ProxyTracer
 
 	if (!isInitialized) {
 		if (!instrumentations)
@@ -285,7 +282,7 @@ export const opentelemetry = ({
 				}
 			}) => {
 				const rootSpan = trace.getActiveSpan()!
-				if(!rootSpan) return
+				if (!rootSpan) return
 
 				let parent = rootSpan
 
@@ -364,7 +361,7 @@ export const opentelemetry = ({
 									)
 								})
 
-								onStop(({ error }) => {
+								onStop(() => {
 									if (event.isRecording()) event.end()
 									// console.log(`[${name}]: end`)
 								})
@@ -377,8 +374,8 @@ export const opentelemetry = ({
 				context.trace = {
 					startSpan(
 						name: string,
-						options?: SpanOptions,
-						context?: Context
+						// options?: SpanOptions,
+						// context?: Context
 					) {
 						return tracer.startSpan(name, {}, createContext(parent))
 					},
@@ -493,8 +490,7 @@ export const opentelemetry = ({
 						response
 					} = context
 
-					if (context.route)
-						attributes['http.route'] = context.route
+					if (context.route) attributes['http.route'] = context.route
 
 					switch (typeof response) {
 						case 'object':

@@ -1,3 +1,7 @@
+# 1.1.3 - 19 Aug 2024
+Bug fix:
+- Support bun build --minify-identifiers
+
 # 1.1.2 - 4 Aug 2024
 Bug fix:
 - Check nullability of rootSpan
