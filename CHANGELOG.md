@@ -1,3 +1,6 @@
+# 1.1.4 - 19 Aug 2024
+- Negate isInitialized
+
 # 1.1.3 - 19 Aug 2024
 Bug fix:
 - Support bun build --minify-identifiers

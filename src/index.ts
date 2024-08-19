@@ -198,9 +198,7 @@ export const opentelemetry = ({
 }: ElysiaOpenTelemetryOptions = {}) => {
 	let tracer = trace.getTracer(serviceName)
 
-	const isInitialized = tracer instanceof ProxyTracer
-
-	if (!isInitialized) {
+	if (tracer instanceof ProxyTracer) {
 		if (!instrumentations)
 			instrumentations = [getNodeAutoInstrumentations()]
 
