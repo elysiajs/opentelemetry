@@ -1,3 +1,7 @@
+# 1.1.1 - 5 Sep 2024
+Feature:
+- add provenance publish
+
 # 1.1.4 - 19 Aug 2024
 - Negate isInitialized
 
