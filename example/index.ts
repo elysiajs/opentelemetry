@@ -1,16 +1,13 @@
 import { Elysia, t } from 'elysia'
 import { treaty } from '@elysiajs/eden'
 
-import { getTracer, opentelemetry } from '../src'
+import { getCurrentSpan, getTracer, opentelemetry, setAttributes } from '../src'
 import * as otel from '@opentelemetry/api'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import {
 	BatchSpanProcessor,
-	ConsoleSpanExporter,
-	Span
+	ConsoleSpanExporter
 } from '@opentelemetry/sdk-trace-node'
-import { Resource } from '@opentelemetry/resources'
-import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions'
 
 import { yoga } from '@elysiajs/graphql-yoga'
 import { useOpenTelemetry } from '@envelop/opentelemetry'
@@ -60,8 +57,6 @@ class NagisaError extends Error {
 
 const plugin = () => (app: Elysia) =>
 	app.get('/', () => {
-		console.log(otel.context.active())
-
 		return 'a'
 	})
 
@@ -78,7 +73,7 @@ const app = new Elysia()
 						// }
 					})
 				),
-				new BatchSpanProcessor(new ConsoleSpanExporter())
+				// new BatchSpanProcessor(new ConsoleSpanExporter())
 			]
 		})
 	)
@@ -113,6 +108,9 @@ const app = new Elysia()
 	.post(
 		'/id/:id',
 		async ({ query }) => {
+			console.log(getCurrentSpan())
+			setAttributes({ hello: 'world' })
+
 			return getTracer().startActiveSpan(
 				'handle.sleep.0',
 				async (span) => {

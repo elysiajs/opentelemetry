@@ -124,7 +124,7 @@ export type Tracer = ReturnType<TraceAPI['getTracer']>
 export type StartSpan = Tracer['startSpan']
 export type StartActiveSpan = Tracer['startActiveSpan']
 
-const contextKeySpan = Symbol.for('OpenTelemetry Context Key SPAN')
+export const contextKeySpan = Symbol.for('OpenTelemetry Context Key SPAN')
 
 export const getTracer = (): ReturnType<TraceAPI['getTracer']> => {
 	const tracer = trace.getTracer('Elysia')
@@ -189,6 +189,24 @@ export const startActiveSpan: StartActiveSpan = (...args: ActiveSpanArgs) => {
 }
 
 export const record = startActiveSpan
+
+export const getCurrentSpan = (): Span | undefined => {
+	const current: Span = otelContext
+		.active()
+		// @ts-ignore
+		._currentContext?.get(contextKeySpan)
+
+	return current
+}
+
+/**
+ * Set attributes to the current span
+ *
+ * @returns boolean - whether the attributes are set or not
+ */
+export const setAttributes = (attributes: Attributes) => {
+	return !!getCurrentSpan()?.setAttributes(attributes)
+}
 
 export const opentelemetry = ({
 	serviceName = 'Elysia',
@@ -371,7 +389,7 @@ export const opentelemetry = ({
 				// @ts-ignore
 				context.trace = {
 					startSpan(
-						name: string,
+						name: string
 						// options?: SpanOptions,
 						// context?: Context
 					) {
@@ -704,14 +722,6 @@ export const opentelemetry = ({
 							`${method} ${context.route}`
 						)
 						rootSpan.end()
-
-						// Necessary for preventing GC
-						setTimeout(
-							() => {
-								rootSpan
-							},
-							20 * 1000 * 1000
-						)
 					})
 				})
 			}

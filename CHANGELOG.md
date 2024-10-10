@@ -1,4 +1,14 @@
-# 1.1.1 - 5 Sep 2024
+# 1.1.6 - 10 Oct 2024
+Improvement:
+- setTimeout reference hack to prevent gc
+
+Feature:
+- export `getCurrentSpan`, `setAttributes`
+
+Bug fix:
+- possibly setTimeout memory leak
+
+# 1.1.5 - 5 Sep 2024
 Feature:
 - add provenance publish
 
