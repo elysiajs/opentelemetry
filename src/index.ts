@@ -13,7 +13,7 @@ import {
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
+import { registerInstrumentations } from '@opentelemetry/instrumentation'
 
 // @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
@@ -217,9 +217,6 @@ export const opentelemetry = ({
 	let tracer = trace.getTracer(serviceName)
 
 	if (tracer instanceof ProxyTracer) {
-		if (!instrumentations)
-			instrumentations = [getNodeAutoInstrumentations()]
-
 		const sdk = new NodeSDK({
 			...options,
 			serviceName,

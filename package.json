@@ -1,6 +1,6 @@
 {
   "name": "@elysiajs/opentelemetry",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "license": "MIT",
   "scripts": {
     "dev": "bun run --watch example/index.ts",
@@ -36,8 +36,8 @@
   ],
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.48.0",
-    "@opentelemetry/sdk-node": "^0.52.1"
+    "@opentelemetry/instrumentation": "^0.54.0",
+    "@opentelemetry/sdk-node": "^0.54.0"
   },
   "devDependencies": {
     "@axiomhq/js": "^1.0.0-rc.3",

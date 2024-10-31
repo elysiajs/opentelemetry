@@ -1,3 +1,7 @@
+# 1.1.7 - 31 Oct 2024
+Change:
+- remove auto-node-instrumenetation by default
+
 # 1.1.6 - 10 Oct 2024
 Improvement:
 - setTimeout reference hack to prevent gc
