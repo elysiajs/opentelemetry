@@ -1,3 +1,8 @@
+
+# 1.2.0-rc.0 - 23 Dec 2024
+Change:
+- Add support for Elysia 1.2
+
 # 1.1.7 - 31 Oct 2024
 Change:
 - remove auto-node-instrumenetation by default
