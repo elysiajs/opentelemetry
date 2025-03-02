@@ -716,7 +716,7 @@ export const opentelemetry = ({
 
 						rootSpan.updateName(
 							// @ts-ignore private property
-							`${method} ${context.route}`
+							`${method} ${context.route || context.path}`
 						)
 						rootSpan.end()
 					})
