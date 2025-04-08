@@ -224,10 +224,6 @@ export const opentelemetry = ({
 			instrumentations
 		})
 
-		registerInstrumentations({
-			instrumentations
-		})
-
 		sdk.start()
 
 		tracer = trace.getTracer(serviceName)
@@ -273,12 +269,13 @@ export const opentelemetry = ({
 		name: '@elysia/opentelemetry'
 	})
 		.wrap((fn, request) => {
-			const ctx = propagation.extract(
-				otelContext.active(),
-				request.headers.toJSON()
-			)
-			return tracer.startActiveSpan('request', {}, ctx, (rootSpan) =>
-				otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
+			const ctx = propagation.extract(otelContext.active(), request)
+
+			return tracer.startActiveSpan(
+				'request',
+				{},
+				propagation.extract(otelContext.active(), request),
+				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
 			)
 		})
 		.trace(
@@ -295,10 +292,12 @@ export const opentelemetry = ({
 				onAfterResponse,
 				onMapResponse,
 				context,
-				context: { path, request }
+				context: {
+					path,
+					request: { method }
+				}
 			}) => {
 				const rootSpan = trace.getActiveSpan()!
-				const method = request?.method
 
 				if (!rootSpan) return
 
