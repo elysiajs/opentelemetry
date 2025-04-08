@@ -2,6 +2,7 @@ import { Elysia, type TraceEvent, type TraceProcess, StatusMap } from 'elysia'
 import {
 	trace,
 	context as otelContext,
+	propagation,
 	SpanStatusCode,
 	type ContextManager,
 	type Context,
@@ -271,14 +272,15 @@ export const opentelemetry = ({
 	return new Elysia({
 		name: '@elysia/opentelemetry'
 	})
-		.wrap((fn) =>
-			tracer.startActiveSpan('request', (rootSpan) =>
-				otelContext.bind(
-					trace.setSpan(otelContext.active(), rootSpan),
-					fn
-				)
+		.wrap((fn, request) => {
+			const ctx = propagation.extract(
+				otelContext.active(),
+				request.headers.toJSON()
 			)
-		)
+			return tracer.startActiveSpan('request', {}, ctx, (rootSpan) =>
+				otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
+			)
+		})
 		.trace(
 			{ as: 'global' },
 			({
@@ -719,7 +721,7 @@ export const opentelemetry = ({
 
 						rootSpan.updateName(
 							// @ts-ignore private property
-							`${method} ${context.route}`
+							`${method} ${context.route || context.path}`
 						)
 						rootSpan.end()
 					})
