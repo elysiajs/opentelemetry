@@ -223,6 +223,10 @@ export const opentelemetry = ({
 			instrumentations
 		})
 
+		registerInstrumentations({
+			instrumentations
+		})
+
 		sdk.start()
 
 		tracer = trace.getTracer(serviceName)
@@ -289,12 +293,11 @@ export const opentelemetry = ({
 				onAfterResponse,
 				onMapResponse,
 				context,
-				context: {
-					path,
-					request: { method }
-				}
+				context: { path, request }
 			}) => {
 				const rootSpan = trace.getActiveSpan()!
+				const method = request?.method
+
 				if (!rootSpan) return
 
 				let parent = rootSpan
