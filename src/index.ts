@@ -10,11 +10,11 @@ import {
 	type Span,
 	type Attributes,
 	TraceAPI,
-	ProxyTracer
+	ProxyTracer,
+	SpanKind
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { registerInstrumentations } from '@opentelemetry/instrumentation'
 
 // @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
@@ -273,7 +273,7 @@ export const opentelemetry = ({
 
 			return tracer.startActiveSpan(
 				'request',
-				{},
+				{ kind: SpanKind.SERVER },
 				propagation.extract(otelContext.active(), request),
 				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
 			)
