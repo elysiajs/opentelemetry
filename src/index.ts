@@ -439,7 +439,7 @@ export const opentelemetry = ({
 				}
 
 				// @ts-ignore private property
-				if (context.qi !== -1)
+				if (context.qi && context.qi !== -1)
 					attributes['url.query'] = url.slice(
 						// @ts-ignore private property
 						context.qi + 1
@@ -504,6 +504,7 @@ export const opentelemetry = ({
 						body,
 						request,
 						headers: parsedHeaders,
+						// @ts-expect-error
 						response
 					} = context
 
@@ -584,7 +585,7 @@ export const opentelemetry = ({
 
 					const server = context.server
 					if (server) {
-						attributes['server.port'] = server.port
+						attributes['server.port'] = server.port ?? 0
 						attributes['server.address'] = server.url.hostname
 						attributes['server.address'] = server.url.hostname
 					}
