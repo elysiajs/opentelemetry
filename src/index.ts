@@ -269,13 +269,18 @@ export const opentelemetry = ({
 		name: '@elysia/opentelemetry'
 	})
 		.wrap((fn, request) => {
-			const ctx = propagation.extract(otelContext.active(), request)
+			let headers;
+			if (headerHasToJSON) {
+			    // @ts-ignore bun only
+			    headers = request.headers.toJSON()
+			} else {
+			    headers = Object.fromEntries(request.headers.entries())
+			}
 
-			return tracer.startActiveSpan(
-				'request',
-				{},
-				propagation.extract(otelContext.active(), request),
-				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
+			const ctx = propagation.extract(otelContext.active(), headers)
+
+			return tracer.startActiveSpan('request', {}, ctx, (rootSpan) =>
+				otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
 			)
 		})
 		.trace(
