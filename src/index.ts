@@ -269,12 +269,12 @@ export const opentelemetry = ({
 		name: '@elysia/opentelemetry'
 	})
 		.wrap((fn, request) => {
-			let headers;
+			let headers
 			if (headerHasToJSON) {
-			    // @ts-ignore bun only
-			    headers = request.headers.toJSON()
+				// @ts-ignore bun only
+				headers = request.headers.toJSON()
 			} else {
-			    headers = Object.fromEntries(request.headers.entries())
+				headers = Object.fromEntries(request.headers.entries())
 			}
 
 			const ctx = propagation.extract(otelContext.active(), headers)
