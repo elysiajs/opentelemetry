@@ -14,7 +14,6 @@ import {
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { registerInstrumentations } from '@opentelemetry/instrumentation'
 
 // @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
@@ -381,6 +380,7 @@ export const opentelemetry = ({
 								onStop(() => {
 									if (event.isRecording()) event.end()
 									// console.log(`[${name}]: end`)
+									setParent(rootSpan)
 								})
 							}
 						)
