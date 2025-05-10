@@ -710,8 +710,9 @@ export const opentelemetry = ({
 								attributes['http.request.body.size'] = body.size
 
 							attributes['http.request.body.size'] = value.length
-						} else
+						} else {
 							attributes['http.request.body.size'] = value.length
+						}
 					}
 
 					rootSpan.setAttributes(attributes)
