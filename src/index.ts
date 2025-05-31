@@ -265,16 +265,23 @@ export const opentelemetry = ({
 			// }
 		}
 
-	return new Elysia({
-		name: '@elysia/opentelemetry'
-	})
-		.wrap((fn, request) => {
-			const ctx = propagation.extract(otelContext.active(), request)
+		return new Elysia({
+			name: '@elysia/opentelemetry'
+		}).wrap((fn, request) => {
+			let headers
+			if (headerHasToJSON) {
+				// @ts-ignore bun only
+				headers = request.headers.toJSON()
+			} else {
+				headers = Object.fromEntries(request.headers.entries())
+			}
+
+			const ctx = propagation.extract(otelContext.active(), headers)
 
 			return tracer.startActiveSpan(
 				'request',
 				{ kind: SpanKind.SERVER },
-				propagation.extract(otelContext.active(), request),
+				ctx,
 				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
 			)
 		})
@@ -381,6 +388,7 @@ export const opentelemetry = ({
 								onStop(() => {
 									if (event.isRecording()) event.end()
 									// console.log(`[${name}]: end`)
+									setParent(rootSpan)
 								})
 							}
 						)
@@ -439,7 +447,7 @@ export const opentelemetry = ({
 				}
 
 				// @ts-ignore private property
-				if (context.qi !== -1)
+				if (context.qi && context.qi !== -1)
 					attributes['url.query'] = url.slice(
 						// @ts-ignore private property
 						context.qi + 1
@@ -504,6 +512,7 @@ export const opentelemetry = ({
 						body,
 						request,
 						headers: parsedHeaders,
+						// @ts-expect-error
 						response
 					} = context
 
@@ -584,7 +593,7 @@ export const opentelemetry = ({
 
 					const server = context.server
 					if (server) {
-						attributes['server.port'] = server.port
+						attributes['server.port'] = server.port ?? 0
 						attributes['server.address'] = server.url.hostname
 						attributes['server.address'] = server.url.hostname
 					}
@@ -709,8 +718,9 @@ export const opentelemetry = ({
 								attributes['http.request.body.size'] = body.size
 
 							attributes['http.request.body.size'] = value.length
-						} else
+						} else {
 							attributes['http.request.body.size'] = value.length
+						}
 					}
 
 					rootSpan.setAttributes(attributes)
