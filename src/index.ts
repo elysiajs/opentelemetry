@@ -10,7 +10,8 @@ import {
 	type Span,
 	type Attributes,
 	TraceAPI,
-	ProxyTracer
+	ProxyTracer,
+	SpanKind
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -264,10 +265,9 @@ export const opentelemetry = ({
 			// }
 		}
 
-	return new Elysia({
-		name: '@elysia/opentelemetry'
-	})
-		.wrap((fn, request) => {
+		return new Elysia({
+			name: '@elysia/opentelemetry'
+		}).wrap((fn, request) => {
 			let headers
 			if (headerHasToJSON) {
 				// @ts-ignore bun only
@@ -278,8 +278,11 @@ export const opentelemetry = ({
 
 			const ctx = propagation.extract(otelContext.active(), headers)
 
-			return tracer.startActiveSpan('request', {}, ctx, (rootSpan) =>
-				otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
+			return tracer.startActiveSpan(
+				'request',
+				{ kind: SpanKind.SERVER },
+				ctx,
+				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
 			)
 		})
 		.trace(
