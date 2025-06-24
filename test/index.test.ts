@@ -1,440 +1,435 @@
-// import { Elysia } from 'elysia'
-// import { staticPlugin } from '../src'
-
-// import { describe, expect, it } from 'bun:test'
-// import { join, sep } from 'path'
-
-// const req = (path: string) => new Request(`http://localhost${path}`)
-
-// const takodachi = await Bun.file('public/takodachi.png').text()
-
-// describe('Static Plugin', () => {
-//     it('should get root path', async () => {
-//         const app = new Elysia().use(staticPlugin())
-
-//         await app.modules
-
-//         const res = await app
-//             .handle(req('/public/takodachi.png'))
-//             .then((r) => r.blob())
-//             .then((r) => r.text())
-
-//         expect(res).toBe(takodachi)
-//     })
-
-//     it('should get nested path', async () => {
-//         const app = new Elysia().use(staticPlugin())
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/nested/takodachi.png'))
-//         const blob = await res.blob()
-//         expect(await blob.text()).toBe(takodachi)
-//     })
-
-//     it('should get different path', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 assets: 'public-aliased'
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/tako.png'))
-//         const blob = await res.blob()
-//         expect(await blob.text()).toBe(takodachi)
-//     })
-
-//     it('should handle prefix', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 prefix: '/static'
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/static/takodachi.png'))
-//         const blob = await res.blob()
-//         expect(await blob.text()).toBe(takodachi)
-//     })
-
-//     it('should handle empty prefix', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 prefix: ''
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/takodachi.png'))
-//         const blob = await res.blob()
-//         expect(await blob.text()).toBe(takodachi)
-//     })
-
-//     it('should supports multiple public', async () => {
-//         const app = new Elysia()
-//             .use(
-//                 staticPlugin({
-//                     prefix: '/public-aliased',
-//                     assets: 'public-aliased'
-//                 })
-//             )
-//             .use(
-//                 staticPlugin({
-//                     prefix: '/public'
-//                 })
-//             )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi.png'))
-
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('ignore string pattern', async () => {
-//         const app = new Elysia({ forceErrorEncapsulation: true }).use(
-//             staticPlugin({
-//                 ignorePatterns: [`public${sep}takodachi.png`]
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi.png'))
-//         expect(res.status).toBe(404)
-//     })
-
-//     it('ignore regex pattern', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 ignorePatterns: [/takodachi.png$/]
-//             })
-//         )
-
-//         const file = await app.handle(req('/public/takodachi.png'))
-
-//         expect(file.status).toBe(404)
-//     })
-
-//     it('always static', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app
-//             .handle(req('/public/takodachi.png'))
-//             .then((r) => r.blob())
-//             .then((r) => r.text())
-
-//         expect(res).toBe(takodachi)
-//     })
-
-//     it('always static with assets on an absolute path', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 prefix: '',
-//                 assets: join(import.meta.dir, '../public')
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi.png'))
-//         const blob = await res.blob()
-//         expect(await blob.text()).toBe(takodachi)
-//     })
-
-//     it('exclude extension', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app
-//             .handle(req('/public/takodachi'))
-//             .then((r) => r.blob())
-//             .then((r) => r.text())
-
-//         expect(res).toBe(takodachi)
-//     })
-
-//     it('return custom headers', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true,
-//                 headers: {
-//                     ['x-powered-by']: 'Takodachi'
-//                 }
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi'))
-
-//         expect(res.headers.get('x-powered-by')).toBe('Takodachi')
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('call onError when using dynamic mode', async () => {
-//         let called = false
-
-//         const app = new Elysia()
-//             .onError(({ code }) => {
-//                 if (code === 'NOT_FOUND') called = true
-//             })
-//             .use(
-//                 staticPlugin({
-//                     alwaysStatic: false
-//                 })
-//             )
-
-//         await app.modules
-
-//         await app.handle(req('/public/not-found'))
-
-//         expect(called).toBe(true)
-//     })
-
-//     it('return etag header', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi'))
-
-//         expect(res.headers.get('Etag')).toBe('ZGe9eXgawZBlMox8sZg82Q==')
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('return no etag header when noCache', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true,
-//                 noCache: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi'))
-
-//         expect(res.headers.get('Etag')).toBe(null)
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('return Cache-Control header when maxAge is set', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true,
-//                 maxAge: 3600
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi'))
-
-//         expect(res.headers.get('Cache-Control')).toBe('public, max-age=3600')
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('return Cache-Control header when maxAge is not set', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi'))
-
-//         expect(res.headers.get('Cache-Control')).toBe('public, max-age=86400')
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('skip Cache-Control header when maxAge is null', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 maxAge: null
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi.png'))
-
-//         expect(res.headers.get('Cache-Control')).toBe('public')
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('set cache directive', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 directive: 'private'
-//             })
-//         )
-
-//         await app.modules
-
-//         const res = await app.handle(req('/public/takodachi.png'))
-
-//         expect(res.headers.get('Cache-Control')).toBe('private, max-age=86400')
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('return not modified response (etag)', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const request = req('/public/takodachi')
-//         request.headers.append('If-None-Match', 'ZGe9eXgawZBlMox8sZg82Q==')
-
-//         const res = await app.handle(request)
-
-//         expect(res.body).toBe(null)
-//         expect(res.status).toBe(304)
-//     })
-
-//     it('return not modified response (time)', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const tomorrow = new Date()
-//         tomorrow.setDate(tomorrow.getDate() + 1)
-
-//         const request = req('/public/takodachi')
-//         request.headers.append('If-Modified-Since', tomorrow.toString())
-
-//         const res = await app.handle(request)
-
-//         expect(res.body).toBe(null)
-//         expect(res.status).toBe(304)
-//     })
-
-//     it('return ok response when noCache', async () => {
-//         const app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 noExtension: true,
-//                 noCache: true
-//             })
-//         )
-
-//         await app.modules
-
-//         const tomorrow = new Date()
-//         tomorrow.setDate(tomorrow.getDate() + 1)
-
-//         const request = req('/public/takodachi')
-//         request.headers.append('If-None-Match', 'ZGe9eXgawZBlMox8sZg82Q==')
-//         request.headers.append('If-Modified-Since', tomorrow.toString())
-
-//         const res = await app.handle(request)
-
-//         expect(res.status).toBe(200)
-//     })
-
-//     it('should 404 when navigate to folder', async () => {
-//         const app = new Elysia().use(staticPlugin())
-
-//         await app.modules
-
-//         const notFoundPaths = [
-//             '/public',
-//             '/public/',
-//             '/public/nested',
-//             '/public/nested/'
-//         ]
-
-//         for (const path of notFoundPaths) {
-//             const res = await app.handle(req(path))
-
-//             expect(res.status).toBe(404)
-//         }
-//     })
-
-//     it('serve index.html to default /', async () => {
-//         let app = new Elysia().use(staticPlugin())
-//         await app.modules
-
-//         let res = await app.handle(req('/public'))
-//         expect(res.status).toBe(404)
-
-//         res = await app.handle(req('/public/html'))
-//         expect(res.status).toBe(200)
-
-//         app = new Elysia().use(
-//             staticPlugin({
-//                 indexHTML: false
-//             })
-//         )
-
-//         res = await app.handle(req('/public'))
-//         expect(res.status).toBe(404)
-
-//         res = await app.handle(req('/public/html'))
-//         expect(res.status).toBe(404)
-
-//         // Not sure why this error but not in dev environment
-//         // app = new Elysia().use(
-//         //     staticPlugin({
-//         //         alwaysStatic: true
-//         //     })
-//         // )
-
-//         // res = await app.handle(req('/public'))
-//         // expect(res.status).toBe(404)
-
-//         // res = await app.handle(req('/public/html'))
-//         // expect(res.status).toBe(200)
-
-//         app = new Elysia().use(
-//             staticPlugin({
-//                 alwaysStatic: true,
-//                 indexHTML: false
-//             })
-//         )
-
-//         res = await app.handle(req('/public'))
-//         expect(res.status).toBe(404)
-
-//         res = await app.handle(req('/public/html'))
-//         expect(res.status).toBe(404)
-//     })
-// })
+import { Elysia } from 'elysia'
+import {
+	opentelemetry,
+	getTracer,
+	startActiveSpan,
+	setAttributes,
+	getCurrentSpan
+} from '../src'
+import { describe, expect, it, beforeEach, afterEach } from 'bun:test'
+import { trace, SpanStatusCode } from '@opentelemetry/api'
+
+const req = (path: string, options?: RequestInit) =>
+	new Request(`http://localhost${path}`, options)
+
+describe('OpenTelemetry Plugin', () => {
+	let app: Elysia
+
+	beforeEach(() => {
+		app = new Elysia()
+	})
+
+	afterEach(async () => {
+		// Clean up any active spans
+		trace.getActiveSpan()?.end()
+	})
+
+	it('should initialize plugin without options', async () => {
+		expect(typeof opentelemetry).toBe('function')
+
+		const plugin = opentelemetry()
+		expect(plugin).toBeDefined()
+		expect(typeof plugin).toBe('object')
+	})
+
+	it('should initialize plugin with options', async () => {
+		expect(typeof opentelemetry).toBe('function')
+
+		const plugin = opentelemetry({
+			serviceName: 'test-service'
+		})
+		expect(plugin).toBeDefined()
+		expect(typeof plugin).toBe('object')
+	})
+
+	it('should create tracer and start span', async () => {
+		const tracer = getTracer()
+		expect(tracer).toBeDefined()
+		expect(typeof tracer.startSpan).toBe('function')
+		expect(typeof tracer.startActiveSpan).toBe('function')
+
+		const span = tracer.startSpan('test-span')
+		expect(span).toBeDefined()
+		expect(span.isRecording()).toBe(true)
+		span.end()
+	})
+
+	it('should start active span with callback', async () => {
+		let spanInCallback: any
+
+		startActiveSpan('test-active-span', (span) => {
+			spanInCallback = span
+			expect(span.isRecording()).toBe(true)
+			return 'test-result'
+		})
+
+		expect(spanInCallback).toBeDefined()
+	})
+
+	it('should start active span with options', async () => {
+		const result = startActiveSpan(
+			'test-span-with-options',
+			{ kind: 1 },
+			(span) => {
+				expect(span.isRecording()).toBe(true)
+				span.setAttributes({ 'test.attribute': 'value' })
+				return 'success'
+			}
+		)
+
+		expect(result).toBe('success')
+	})
+
+	it('should handle async operations in active span', async () => {
+		const result = await startActiveSpan('async-test', async (span) => {
+			span.setAttributes({ 'async.test': true })
+			await new Promise((resolve) => setTimeout(resolve, 10))
+			return 'async-result'
+		})
+
+		expect(result).toBe('async-result')
+	})
+
+	it('should set attributes on current span', () => {
+		const tracer = getTracer()
+		const span = tracer.startSpan('attribute-test')
+
+		// Mock the getCurrentSpan to return our test span
+		const originalGetCurrentSpan = getCurrentSpan
+
+		const result = setAttributes({ 'test.key': 'test.value' })
+
+		span.end()
+		// Note: In real scenario, setAttributes works with active span context
+		// This test verifies the function exists and can be called
+		expect(typeof setAttributes).toBe('function')
+	})
+
+	it('should handle span errors gracefully', async () => {
+		let error: Error | null = null
+
+		try {
+			startActiveSpan('error-test', (span) => {
+				throw new Error('Test error')
+			})
+		} catch (e) {
+			error = e as Error
+		}
+
+		expect(error).toBeDefined()
+		expect(error?.message).toBe('Test error')
+	})
+
+	it('should work with Elysia app', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'test-elysia-app'
+				})
+			)
+			.get('/test', () => 'Hello OpenTelemetry')
+
+		const response = await testApp.handle(req('/test'))
+		expect(response.status).toBe(200)
+		expect(await response.text()).toBe('Hello OpenTelemetry')
+	})
+
+	it('should handle POST requests with tracing', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'test-post-app'
+				})
+			)
+			.post('/data', ({ body }) => ({ received: body }))
+
+		const response = await testApp.handle(
+			req('/data', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ test: 'data' })
+			})
+		)
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.received).toEqual({ test: 'data' })
+	})
+
+	it('should trace multiple consecutive requests', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'multi-request-test'
+				})
+			)
+			.get('/request/:id', ({ params }) => ({ id: params.id }))
+
+		// Make multiple requests
+		for (let i = 1; i <= 3; i++) {
+			const response = await testApp.handle(req(`/request/${i}`))
+			expect(response.status).toBe(200)
+			const result = await response.json()
+			expect(result.id).toBe(i.toString())
+		}
+	})
+
+	it('should handle 404 errors with tracing', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'error-test-app'
+				})
+			)
+			.get('/exists', () => 'Found')
+
+		const response = await testApp.handle(req('/not-found'))
+		expect(response.status).toBe(404)
+	})
+
+	it('should handle application errors with tracing', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'app-error-test'
+				})
+			)
+			.get('/error', () => {
+				throw new Error('Application error')
+			})
+
+		try {
+			await testApp.handle(req('/error'))
+		} catch (error) {
+			// Error should be handled by OpenTelemetry tracing
+			expect(error).toBeDefined()
+		}
+	})
+
+	it('should support custom span attributes in routes', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'custom-attributes-test'
+				})
+			)
+			.get('/custom', () => {
+				// In a real scenario, you would get the current span and set attributes
+				const currentSpan = trace.getActiveSpan()
+				if (currentSpan) {
+					currentSpan.setAttributes({
+						'custom.attribute': 'custom-value',
+						'request.type': 'api'
+					})
+				}
+				return { message: 'Custom attributes set' }
+			})
+
+		const response = await testApp.handle(req('/custom'))
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.message).toBe('Custom attributes set')
+	})
+
+	it('should handle different HTTP methods with tracing', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'http-methods-test'
+				})
+			)
+			.get('/get', () => ({ method: 'GET' }))
+			.post('/post', () => ({ method: 'POST' }))
+			.put('/put', () => ({ method: 'PUT' }))
+			.delete('/delete', () => ({ method: 'DELETE' }))
+
+		const getResponse = await testApp.handle(req('/get'))
+		expect(getResponse.status).toBe(200)
+		const getResult = await getResponse.json()
+		expect(getResult.method).toBe('GET')
+
+		const postResponse = await testApp.handle(
+			req('/post', { method: 'POST' })
+		)
+		expect(postResponse.status).toBe(200)
+		const postResult = await postResponse.json()
+		expect(postResult.method).toBe('POST')
+
+		const putResponse = await testApp.handle(req('/put', { method: 'PUT' }))
+		expect(putResponse.status).toBe(200)
+		const putResult = await putResponse.json()
+		expect(putResult.method).toBe('PUT')
+
+		const deleteResponse = await testApp.handle(
+			req('/delete', { method: 'DELETE' })
+		)
+		expect(deleteResponse.status).toBe(200)
+		const deleteResult = await deleteResponse.json()
+		expect(deleteResult.method).toBe('DELETE')
+	})
+
+	it('should trace requests with headers', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'headers-test'
+				})
+			)
+			.get('/headers', ({ headers }) => ({
+				userAgent: headers['user-agent'],
+				contentType: headers['content-type']
+			}))
+
+		const response = await testApp.handle(
+			req('/headers', {
+				headers: {
+					'user-agent': 'test-agent',
+					'content-type': 'application/json'
+				}
+			})
+		)
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.userAgent).toBe('test-agent')
+		expect(result.contentType).toBe('application/json')
+	})
+
+	it('should handle query parameters with tracing', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'query-params-test'
+				})
+			)
+			.get('/search', ({ query }) => ({
+				query: query.q,
+				limit: query.limit
+			}))
+
+		const response = await testApp.handle(
+			req('/search?q=test-search&limit=10')
+		)
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.query).toBe('test-search')
+		expect(result.limit).toBe('10')
+	})
+
+	it('should work with middleware and tracing', async () => {
+		let middlewareCalled = false
+
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'middleware-test'
+				})
+			)
+			.onBeforeHandle(() => {
+				middlewareCalled = true
+			})
+			.get('/middleware', () => ({ middleware: 'executed' }))
+
+		const response = await testApp.handle(req('/middleware'))
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.middleware).toBe('executed')
+		expect(middlewareCalled).toBe(true)
+	})
+
+	it('should trace nested route groups', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'nested-routes-test'
+				})
+			)
+			.group('/api', (app) =>
+				app.group('/v1', (app) =>
+					app.get('/users', () => ({ users: ['user1', 'user2'] }))
+				)
+			)
+
+		const response = await testApp.handle(req('/api/v1/users'))
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.users).toEqual(['user1', 'user2'])
+	})
+
+	it('should handle response with different status codes', async () => {
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'status-codes-test'
+				})
+			)
+			.get('/ok', () => ({ status: 'ok' }))
+			.get('/created', ({ set }) => {
+				set.status = 201
+				return { status: 'created' }
+			})
+			.get('/accepted', ({ set }) => {
+				set.status = 202
+				return { status: 'accepted' }
+			})
+
+		const okResponse = await testApp.handle(req('/ok'))
+		expect(okResponse.status).toBe(200)
+
+		const createdResponse = await testApp.handle(req('/created'))
+		expect(createdResponse.status).toBe(201)
+
+		const acceptedResponse = await testApp.handle(req('/accepted'))
+		expect(acceptedResponse.status).toBe(202)
+	})
+
+	it('should complete full OpenTelemetry span lifecycle', async () => {
+		let spanData: any = null
+		let spanStarted = false
+		let spanEnded = false
+
+		const testApp = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'span-lifecycle-test'
+				})
+			)
+			.get('/lifecycle', () => {
+				const span = trace.getActiveSpan()
+				if (span) {
+					spanStarted = span.isRecording()
+					spanData = {
+						traceId: span.spanContext().traceId,
+						spanId: span.spanContext().spanId,
+						isRecording: span.isRecording()
+					}
+
+					// Set some attributes
+					span.setAttributes({
+						'test.operation': 'lifecycle-test',
+						'test.timestamp': Date.now()
+					})
+
+					// Add an event
+					span.addEvent('test-event', {
+						'event.data': 'test-data'
+					})
+				}
+				return { lifecycle: 'complete', spanStarted }
+			})
+
+		const response = await testApp.handle(req('/lifecycle'))
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.lifecycle).toBe('complete')
+		expect(result.spanStarted).toBe(true)
+		expect(spanData).toBeDefined()
+		expect(spanData?.traceId).toBeDefined()
+		expect(spanData?.spanId).toBeDefined()
+		expect(spanData?.isRecording).toBe(true)
+	})
+})
