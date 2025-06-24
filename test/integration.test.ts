@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { treaty } from '@elysiajs/eden'
 import { opentelemetry } from '../src'
 import { describe, expect, it } from 'bun:test'
 import { trace } from '@opentelemetry/api'
@@ -39,29 +40,23 @@ describe('Elysia Integration', () => {
 				return { method: 'DELETE' }
 			})
 
-		const getResponse = await testApp.handle(req('/get'))
+		const client = treaty(testApp)
+
+		const getResponse = await client.get.get()
 		expect(getResponse.status).toBe(200)
-		const getResult = await getResponse.json()
-		expect(getResult.method).toBe('GET')
+		expect(getResponse.data?.method).toBe('GET')
 
-		const postResponse = await testApp.handle(
-			req('/post', { method: 'POST' })
-		)
+		const postResponse = await client.post.post()
 		expect(postResponse.status).toBe(200)
-		const postResult = await postResponse.json()
-		expect(postResult.method).toBe('POST')
+		expect(postResponse.data?.method).toBe('POST')
 
-		const putResponse = await testApp.handle(req('/put', { method: 'PUT' }))
+		const putResponse = await client.put.put()
 		expect(putResponse.status).toBe(200)
-		const putResult = await putResponse.json()
-		expect(putResult.method).toBe('PUT')
+		expect(putResponse.data?.method).toBe('PUT')
 
-		const deleteResponse = await testApp.handle(
-			req('/delete', { method: 'DELETE' })
-		)
+		const deleteResponse = await client.delete.delete()
 		expect(deleteResponse.status).toBe(200)
-		const deleteResult = await deleteResponse.json()
-		expect(deleteResult.method).toBe('DELETE')
+		expect(deleteResponse.data?.method).toBe('DELETE')
 
 		// Verify spans were created for each HTTP method
 		expect(spanData).toHaveLength(4)
@@ -86,17 +81,11 @@ describe('Elysia Integration', () => {
 			)
 			.post('/data', ({ body }) => ({ received: body }))
 
-		const response = await testApp.handle(
-			req('/data', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ test: 'data' })
-			})
-		)
+		const client = treaty(testApp)
+		const response = await client.data.post({ test: 'data' })
 
 		expect(response.status).toBe(200)
-		const result = await response.json()
-		expect(result.received).toEqual({ test: 'data' })
+		expect(response.data?.received).toEqual({ test: 'data' })
 	})
 
 	it('should trace requests with headers', async () => {
@@ -125,19 +114,17 @@ describe('Elysia Integration', () => {
 				}
 			})
 
-		const response = await testApp.handle(
-			req('/headers', {
-				headers: {
-					'user-agent': 'test-agent',
-					'content-type': 'application/json'
-				}
-			})
-		)
+		const client = treaty(testApp)
+		const response = await client.headers.get({
+			headers: {
+				'user-agent': 'test-agent',
+				'content-type': 'application/json'
+			}
+		})
 
 		expect(response.status).toBe(200)
-		const result = await response.json()
-		expect(result.userAgent).toBe('test-agent')
-		expect(result.contentType).toBe('application/json')
+		expect(response.data?.userAgent).toBe('test-agent')
+		expect(response.data?.contentType).toBe('application/json')
 
 		// Verify span was created and attributes were set
 		expect(spanData).not.toBeNull()
@@ -172,14 +159,17 @@ describe('Elysia Integration', () => {
 				}
 			})
 
-		const response = await testApp.handle(
-			req('/search?q=test-search&limit=10')
-		)
+		const client = treaty(testApp)
+		const response = await client.search.get({
+			query: {
+				q: 'test-search',
+				limit: '10'
+			}
+		})
 
 		expect(response.status).toBe(200)
-		const result = await response.json()
-		expect(result.query).toBe('test-search')
-		expect(result.limit).toBe('10')
+		expect(response.data?.query).toBe('test-search')
+		expect(response.data?.limit).toBe('10')
 
 		// Verify span was created and captured query parameters
 		expect(spanData).not.toBeNull()
@@ -212,11 +202,11 @@ describe('Elysia Integration', () => {
 				return { middleware: 'executed' }
 			})
 
-		const response = await testApp.handle(req('/middleware'))
+		const client = treaty(testApp)
+		const response = await client.middleware.get()
 
 		expect(response.status).toBe(200)
-		const result = await response.json()
-		expect(result.middleware).toBe('executed')
+		expect(response.data?.middleware).toBe('executed')
 		expect(middlewareCalled).toBe(true)
 
 		// Verify spans were created in both middleware and handler
@@ -257,11 +247,11 @@ describe('Elysia Integration', () => {
 				)
 			)
 
-		const response = await testApp.handle(req('/api/v1/users'))
+		const client = treaty(testApp)
+		const response = await client.api.v1.users.get()
 
 		expect(response.status).toBe(200)
-		const result = await response.json()
-		expect(result.users).toEqual(['user1', 'user2'])
+		expect(response.data?.users).toEqual(['user1', 'user2'])
 
 		// Verify span was created for nested route
 		expect(spanData).not.toBeNull()
@@ -308,13 +298,15 @@ describe('Elysia Integration', () => {
 				return { status: 'accepted' }
 			})
 
-		const okResponse = await testApp.handle(req('/ok'))
+		const client = treaty(testApp)
+
+		const okResponse = await client.ok.get()
 		expect(okResponse.status).toBe(200)
 
-		const createdResponse = await testApp.handle(req('/created'))
+		const createdResponse = await client.created.get()
 		expect(createdResponse.status).toBe(201)
 
-		const acceptedResponse = await testApp.handle(req('/accepted'))
+		const acceptedResponse = await client.accepted.get()
 		expect(acceptedResponse.status).toBe(202)
 
 		// Verify spans were created for each status code
@@ -340,12 +332,13 @@ describe('Elysia Integration', () => {
 			)
 			.get('/request/:id', ({ params }) => ({ id: params.id }))
 
+		const client = treaty(testApp)
+
 		// Make multiple requests
 		for (let i = 1; i <= 3; i++) {
-			const response = await testApp.handle(req(`/request/${i}`))
+			const response = await client.request({ id: i.toString() }).get()
 			expect(response.status).toBe(200)
-			const result = await response.json()
-			expect(result.id).toBe(i.toString())
+			expect(response.data?.id).toBe(i.toString())
 		}
 	})
 
@@ -358,6 +351,8 @@ describe('Elysia Integration', () => {
 			)
 			.get('/exists', () => 'Found')
 
+		// Eden doesn't have a direct way to call non-existent routes,
+		// so we'll use the raw handle method for this test
 		const response = await testApp.handle(req('/not-found'))
 		expect(response.status).toBe(404)
 	})
@@ -373,8 +368,10 @@ describe('Elysia Integration', () => {
 				throw new Error('Application error')
 			})
 
+		const client = treaty(testApp)
+
 		try {
-			await testApp.handle(req('/error'))
+			await client.error.get()
 		} catch (error) {
 			// Error should be handled by OpenTelemetry tracing
 			expect(error).toBeDefined()
