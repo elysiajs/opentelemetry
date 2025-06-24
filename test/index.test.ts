@@ -12,16 +12,48 @@ import { trace, SpanStatusCode } from '@opentelemetry/api'
 const req = (path: string, options?: RequestInit) =>
 	new Request(`http://localhost${path}`, options)
 
+// Test utility to capture span data
+interface CapturedSpan {
+	name?: string
+	traceId: string
+	spanId: string
+	parentSpanId?: string
+	attributes?: Record<string, any>
+	events?: Array<{ name: string; attributes?: Record<string, any> }>
+	status?: { code: number; message?: string }
+	isRecording: boolean
+}
+
+let capturedSpans: CapturedSpan[] = []
+
+const captureSpanData = (spanName?: string): CapturedSpan => {
+	const span = trace.getActiveSpan()
+	if (!span) throw new Error('No active span found')
+
+	const context = span.spanContext()
+	const captured: CapturedSpan = {
+		name: spanName,
+		traceId: context.traceId,
+		spanId: context.spanId,
+		isRecording: span.isRecording()
+	}
+
+	capturedSpans.push(captured)
+	return captured
+}
+
 describe('OpenTelemetry Plugin', () => {
 	let app: Elysia
 
 	beforeEach(() => {
 		app = new Elysia()
+		capturedSpans = []
 	})
 
 	afterEach(async () => {
 		// Clean up any active spans
 		trace.getActiveSpan()?.end()
+		capturedSpans = []
 	})
 
 	it('should initialize plugin without options', async () => {
@@ -232,16 +264,38 @@ describe('OpenTelemetry Plugin', () => {
 	})
 
 	it('should handle different HTTP methods with tracing', async () => {
+		const spanData: CapturedSpan[] = []
+
 		const testApp = new Elysia()
 			.use(
 				opentelemetry({
 					serviceName: 'http-methods-test'
 				})
 			)
-			.get('/get', () => ({ method: 'GET' }))
-			.post('/post', () => ({ method: 'POST' }))
-			.put('/put', () => ({ method: 'PUT' }))
-			.delete('/delete', () => ({ method: 'DELETE' }))
+			.get('/get', () => {
+				try {
+					spanData.push(captureSpanData('GET'))
+				} catch {}
+				return { method: 'GET' }
+			})
+			.post('/post', () => {
+				try {
+					spanData.push(captureSpanData('POST'))
+				} catch {}
+				return { method: 'POST' }
+			})
+			.put('/put', () => {
+				try {
+					spanData.push(captureSpanData('PUT'))
+				} catch {}
+				return { method: 'PUT' }
+			})
+			.delete('/delete', () => {
+				try {
+					spanData.push(captureSpanData('DELETE'))
+				} catch {}
+				return { method: 'DELETE' }
+			})
 
 		const getResponse = await testApp.handle(req('/get'))
 		expect(getResponse.status).toBe(200)
@@ -266,19 +320,46 @@ describe('OpenTelemetry Plugin', () => {
 		expect(deleteResponse.status).toBe(200)
 		const deleteResult = await deleteResponse.json()
 		expect(deleteResult.method).toBe('DELETE')
+
+		// Verify spans were created for each HTTP method
+		expect(spanData).toHaveLength(4)
+		spanData.forEach((span, index) => {
+			expect(span.traceId).toBeDefined()
+			expect(span.spanId).toBeDefined()
+			expect(span.isRecording).toBe(true)
+		})
+
+		// Verify each request had a unique trace
+		const traceIds = spanData.map((s) => s.traceId)
+		const uniqueTraceIds = new Set(traceIds)
+		expect(uniqueTraceIds.size).toBe(4)
 	})
 
 	it('should trace requests with headers', async () => {
+		let spanData: CapturedSpan | null = null
+
 		const testApp = new Elysia()
 			.use(
 				opentelemetry({
 					serviceName: 'headers-test'
 				})
 			)
-			.get('/headers', ({ headers }) => ({
-				userAgent: headers['user-agent'],
-				contentType: headers['content-type']
-			}))
+			.get('/headers', ({ headers }) => {
+				try {
+					spanData = captureSpanData('headers-request')
+				} catch {}
+				const span = trace.getActiveSpan()
+				if (span) {
+					span.setAttributes({
+						'http.user_agent': headers['user-agent'] || '',
+						'http.content_type': headers['content-type'] || ''
+					})
+				}
+				return {
+					userAgent: headers['user-agent'],
+					contentType: headers['content-type']
+				}
+			})
 
 		const response = await testApp.handle(
 			req('/headers', {
@@ -293,19 +374,39 @@ describe('OpenTelemetry Plugin', () => {
 		const result = await response.json()
 		expect(result.userAgent).toBe('test-agent')
 		expect(result.contentType).toBe('application/json')
+
+		// Verify span was created and attributes were set
+		expect(spanData).not.toBeNull()
+		expect(spanData!.traceId).toBeDefined()
+		expect(spanData!.spanId).toBeDefined()
+		expect(spanData!.isRecording).toBe(true)
 	})
 
 	it('should handle query parameters with tracing', async () => {
+		let spanData: CapturedSpan | null = null
+
 		const testApp = new Elysia()
 			.use(
 				opentelemetry({
 					serviceName: 'query-params-test'
 				})
 			)
-			.get('/search', ({ query }) => ({
-				query: query.q,
-				limit: query.limit
-			}))
+			.get('/search', ({ query }) => {
+				try {
+					spanData = captureSpanData('search-request')
+				} catch {}
+				const span = trace.getActiveSpan()
+				if (span) {
+					span.setAttributes({
+						'query.q': query.q || '',
+						'query.limit': query.limit || ''
+					})
+				}
+				return {
+					query: query.q,
+					limit: query.limit
+				}
+			})
 
 		const response = await testApp.handle(
 			req('/search?q=test-search&limit=10')
@@ -315,10 +416,18 @@ describe('OpenTelemetry Plugin', () => {
 		const result = await response.json()
 		expect(result.query).toBe('test-search')
 		expect(result.limit).toBe('10')
+
+		// Verify span was created and captured query parameters
+		expect(spanData).not.toBeNull()
+		expect(spanData!.traceId).toBeDefined()
+		expect(spanData!.spanId).toBeDefined()
+		expect(spanData!.isRecording).toBe(true)
 	})
 
 	it('should work with middleware and tracing', async () => {
 		let middlewareCalled = false
+		let middlewareSpanData: CapturedSpan | null = null
+		let handlerSpanData: CapturedSpan | null = null
 
 		const testApp = new Elysia()
 			.use(
@@ -328,8 +437,16 @@ describe('OpenTelemetry Plugin', () => {
 			)
 			.onBeforeHandle(() => {
 				middlewareCalled = true
+				try {
+					middlewareSpanData = captureSpanData('middleware-before')
+				} catch {}
 			})
-			.get('/middleware', () => ({ middleware: 'executed' }))
+			.get('/middleware', () => {
+				try {
+					handlerSpanData = captureSpanData('middleware-handler')
+				} catch {}
+				return { middleware: 'executed' }
+			})
 
 		const response = await testApp.handle(req('/middleware'))
 
@@ -337,9 +454,21 @@ describe('OpenTelemetry Plugin', () => {
 		const result = await response.json()
 		expect(result.middleware).toBe('executed')
 		expect(middlewareCalled).toBe(true)
+
+		// Verify spans were created in both middleware and handler
+		expect(middlewareSpanData).not.toBeNull()
+		expect(handlerSpanData).not.toBeNull()
+		expect(middlewareSpanData!.traceId).toBeDefined()
+		expect(handlerSpanData!.traceId).toBeDefined()
+		// Should be same trace for middleware and handler
+		expect(middlewareSpanData!.traceId).toBe(handlerSpanData!.traceId)
+		expect(middlewareSpanData!.isRecording).toBe(true)
+		expect(handlerSpanData!.isRecording).toBe(true)
 	})
 
 	it('should trace nested route groups', async () => {
+		let spanData: CapturedSpan | null = null
+
 		const testApp = new Elysia()
 			.use(
 				opentelemetry({
@@ -348,7 +477,19 @@ describe('OpenTelemetry Plugin', () => {
 			)
 			.group('/api', (app) =>
 				app.group('/v1', (app) =>
-					app.get('/users', () => ({ users: ['user1', 'user2'] }))
+					app.get('/users', () => {
+						try {
+							spanData = captureSpanData('nested-route')
+						} catch {}
+						const span = trace.getActiveSpan()
+						if (span) {
+							span.setAttributes({
+								'route.group': '/api/v1',
+								'route.endpoint': '/users'
+							})
+						}
+						return { users: ['user1', 'user2'] }
+					})
 				)
 			)
 
@@ -357,21 +498,48 @@ describe('OpenTelemetry Plugin', () => {
 		expect(response.status).toBe(200)
 		const result = await response.json()
 		expect(result.users).toEqual(['user1', 'user2'])
+
+		// Verify span was created for nested route
+		expect(spanData).not.toBeNull()
+		expect(spanData!.traceId).toBeDefined()
+		expect(spanData!.spanId).toBeDefined()
+		expect(spanData!.isRecording).toBe(true)
 	})
 
 	it('should handle response with different status codes', async () => {
+		const spanData: CapturedSpan[] = []
+
 		const testApp = new Elysia()
 			.use(
 				opentelemetry({
 					serviceName: 'status-codes-test'
 				})
 			)
-			.get('/ok', () => ({ status: 'ok' }))
+			.get('/ok', () => {
+				try {
+					spanData.push(captureSpanData('status-200'))
+				} catch {}
+				return { status: 'ok' }
+			})
 			.get('/created', ({ set }) => {
+				try {
+					spanData.push(captureSpanData('status-201'))
+				} catch {}
+				const span = trace.getActiveSpan()
+				if (span) {
+					span.setAttributes({ 'http.status_code': 201 })
+				}
 				set.status = 201
 				return { status: 'created' }
 			})
 			.get('/accepted', ({ set }) => {
+				try {
+					spanData.push(captureSpanData('status-202'))
+				} catch {}
+				const span = trace.getActiveSpan()
+				if (span) {
+					span.setAttributes({ 'http.status_code': 202 })
+				}
 				set.status = 202
 				return { status: 'accepted' }
 			})
@@ -384,6 +552,19 @@ describe('OpenTelemetry Plugin', () => {
 
 		const acceptedResponse = await testApp.handle(req('/accepted'))
 		expect(acceptedResponse.status).toBe(202)
+
+		// Verify spans were created for each status code
+		expect(spanData).toHaveLength(3)
+		spanData.forEach((span) => {
+			expect(span.traceId).toBeDefined()
+			expect(span.spanId).toBeDefined()
+			expect(span.isRecording).toBe(true)
+		})
+
+		// Each request should have unique traces
+		const traceIds = spanData.map((s) => s.traceId)
+		const uniqueTraceIds = new Set(traceIds)
+		expect(uniqueTraceIds.size).toBe(3)
 	})
 
 	it('should complete full OpenTelemetry span lifecycle', async () => {
@@ -431,5 +612,296 @@ describe('OpenTelemetry Plugin', () => {
 		expect(spanData?.traceId).toBeDefined()
 		expect(spanData?.spanId).toBeDefined()
 		expect(spanData?.isRecording).toBe(true)
+	})
+
+	it('should propagate trace context across nested spans', async () => {
+		let rootTraceId: string | undefined
+		let childTraceId: string | undefined
+		let parentSpanId: string | undefined
+		let childSpanId: string | undefined
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'nested-spans-test' }))
+			.get('/nested', () => {
+				const rootSpan = trace.getActiveSpan()
+				if (rootSpan) {
+					rootTraceId = rootSpan.spanContext().traceId
+					parentSpanId = rootSpan.spanContext().spanId
+				}
+
+				// Create a child span
+				return startActiveSpan('child-operation', (childSpan) => {
+					childTraceId = childSpan.spanContext().traceId
+					childSpanId = childSpan.spanContext().spanId
+					childSpan.setAttributes({ 'operation.type': 'child' })
+					return { nested: 'success' }
+				})
+			})
+
+		const response = await testApp.handle(req('/nested'))
+
+		expect(response.status).toBe(200)
+		expect(rootTraceId).toBeDefined()
+		expect(childTraceId).toBeDefined()
+		expect(rootTraceId).toBe(childTraceId!) // Same trace
+		expect(parentSpanId).toBeDefined()
+		expect(childSpanId).toBeDefined()
+		expect(parentSpanId).not.toBe(childSpanId) // Different spans
+	})
+
+	it('should handle span status and error recording', async () => {
+		let spanStatus: any = null
+		let spanEvents: any[] = []
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'span-status-test' }))
+			.get('/error-span', () => {
+				const span = trace.getActiveSpan()
+				if (span) {
+					// Record an error
+					const error = new Error('Simulated error')
+					span.recordException(error)
+					span.setStatus({
+						code: SpanStatusCode.ERROR,
+						message: 'Operation failed'
+					})
+
+					// Add a custom event
+					span.addEvent('custom.event', {
+						'error.type': 'simulation',
+						'error.message': error.message
+					})
+
+					spanStatus = span.spanContext()
+				}
+				return { status: 'error-recorded' }
+			})
+
+		const response = await testApp.handle(req('/error-span'))
+
+		expect(response.status).toBe(200)
+		expect(spanStatus).toBeDefined()
+		const result = await response.json()
+		expect(result.status).toBe('error-recorded')
+	})
+
+	it('should handle concurrent requests with separate traces', async () => {
+		const traceIds = new Set<string>()
+		const spanIds = new Set<string>()
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'concurrent-test' }))
+			.get('/concurrent/:id', ({ params }) => {
+				const span = trace.getActiveSpan()
+				if (span) {
+					const context = span.spanContext()
+					traceIds.add(context.traceId)
+					spanIds.add(context.spanId)
+				}
+				return { id: params.id }
+			})
+
+		// Make multiple concurrent requests
+		const promises = Array.from({ length: 5 }, (_, i) =>
+			testApp.handle(req(`/concurrent/${i}`))
+		)
+
+		const responses = await Promise.all(promises)
+
+		// All should be successful
+		responses.forEach((response, i) => {
+			expect(response.status).toBe(200)
+		})
+
+		// Each request should have unique trace and span IDs
+		expect(traceIds.size).toBe(5)
+		expect(spanIds.size).toBe(5)
+	})
+
+	it('should handle trace context headers properly', async () => {
+		let receivedTraceId: string | undefined
+		let receivedSpanId: string | undefined
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'trace-headers-test' }))
+			.get('/trace-headers', () => {
+				const span = trace.getActiveSpan()
+				if (span) {
+					const context = span.spanContext()
+					receivedTraceId = context.traceId
+					receivedSpanId = context.spanId
+				}
+				return { received: 'trace-context' }
+			})
+
+		// Send request with trace headers
+		const response = await testApp.handle(
+			req('/trace-headers', {
+				headers: {
+					traceparent:
+						'00-12345678901234567890123456789012-1234567890123456-01'
+				}
+			})
+		)
+
+		expect(response.status).toBe(200)
+		expect(receivedTraceId).toBeDefined()
+		expect(receivedSpanId).toBeDefined()
+	})
+
+	it('should work with custom instrumentations', async () => {
+		let customSpanCreated = false
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'custom-instrumentation-test' }))
+			.get('/custom-instrumentation', () => {
+				// Create a custom span within the request
+				const tracer = getTracer()
+				const customSpan = tracer.startSpan('custom-operation')
+
+				customSpan.setAttributes({
+					'custom.attribute': 'test-value',
+					'operation.name': 'custom-operation'
+				})
+
+				customSpan.addEvent('operation.start')
+				customSpanCreated = true
+				customSpan.end()
+
+				return { custom: 'instrumentation-complete' }
+			})
+
+		const response = await testApp.handle(req('/custom-instrumentation'))
+
+		expect(response.status).toBe(200)
+		expect(customSpanCreated).toBe(true)
+		const result = await response.json()
+		expect(result.custom).toBe('instrumentation-complete')
+	})
+
+	it('should handle large request bodies with tracing', async () => {
+		let spanData: CapturedSpan | null = null
+		const largeData = {
+			users: Array.from({ length: 1000 }, (_, i) => ({
+				id: i,
+				name: `User ${i}`,
+				email: `user${i}@example.com`
+			}))
+		}
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'large-body-test' }))
+			.post('/large-data', ({ body }) => {
+				try {
+					spanData = captureSpanData('large-body-request')
+				} catch {}
+				const span = trace.getActiveSpan()
+				if (span) {
+					span.setAttributes({
+						'request.body.size': JSON.stringify(body).length,
+						'request.users.count': (body as any).users?.length || 0
+					})
+				}
+				return {
+					received: Array.isArray((body as any).users),
+					count: (body as any).users?.length || 0
+				}
+			})
+
+		const response = await testApp.handle(
+			req('/large-data', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(largeData)
+			})
+		)
+
+		expect(response.status).toBe(200)
+		const result = await response.json()
+		expect(result.received).toBe(true)
+		expect(result.count).toBe(1000)
+
+		// Verify span handled large request properly
+		expect(spanData).not.toBeNull()
+		expect(spanData!.traceId).toBeDefined()
+		expect(spanData!.spanId).toBeDefined()
+		expect(spanData!.isRecording).toBe(true)
+	})
+
+	it('should handle WebSocket-style long-running operations', async () => {
+		let operationCompleted = false
+		let spanData: CapturedSpan | null = null
+		let eventsAdded = 0
+
+		const testApp = new Elysia()
+			.use(opentelemetry({ serviceName: 'long-operation-test' }))
+			.get('/long-operation', async () => {
+				try {
+					spanData = captureSpanData('long-operation')
+				} catch {}
+				const span = trace.getActiveSpan()
+				if (span) {
+					span.addEvent('operation.start')
+					eventsAdded++
+					span.setAttributes({ 'operation.type': 'long-running' })
+				}
+
+				// Simulate long-running operation
+				await new Promise((resolve) => setTimeout(resolve, 100))
+
+				if (span) {
+					span.addEvent('operation.complete')
+					eventsAdded++
+				}
+
+				operationCompleted = true
+				return { operation: 'completed' }
+			})
+
+		const response = await testApp.handle(req('/long-operation'))
+
+		expect(response.status).toBe(200)
+		expect(operationCompleted).toBe(true)
+		const result = await response.json()
+		expect(result.operation).toBe('completed')
+
+		// Verify span tracked the long operation
+		expect(spanData).not.toBeNull()
+		expect(spanData!.traceId).toBeDefined()
+		expect(spanData!.spanId).toBeDefined()
+		expect(spanData!.isRecording).toBe(true)
+		expect(eventsAdded).toBe(2) // start and complete events
+	})
+
+	it('should handle plugin configuration edge cases', async () => {
+		// Test with minimal configuration
+		const minimalPlugin = opentelemetry({})
+		expect(minimalPlugin).toBeDefined()
+
+		// Test with comprehensive configuration
+		const comprehensivePlugin = opentelemetry({
+			serviceName: 'comprehensive-test'
+		})
+		expect(comprehensivePlugin).toBeDefined()
+
+		let spanData: CapturedSpan | null = null
+
+		const testApp = new Elysia()
+			.use(comprehensivePlugin)
+			.get('/config-test', () => {
+				try {
+					spanData = captureSpanData('config-test')
+				} catch {}
+				return { config: 'tested' }
+			})
+
+		const response = await testApp.handle(req('/config-test'))
+		expect(response.status).toBe(200)
+
+		// Verify span was created even with edge case configuration
+		expect(spanData).not.toBeNull()
+		expect(spanData!.traceId).toBeDefined()
+		expect(spanData!.spanId).toBeDefined()
+		expect(spanData!.isRecording).toBe(true)
 	})
 })
