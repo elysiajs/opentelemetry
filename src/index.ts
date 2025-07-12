@@ -346,6 +346,7 @@ export const opentelemetry = ({
 										(span) => {
 											setParent(span)
 											onStop(({ error }) => {
+												if ((span as any).ended) return;
 												if (error) {
 													rootSpan.setStatus({
 														code: SpanStatusCode.ERROR,
@@ -386,6 +387,7 @@ export const opentelemetry = ({
 								})
 
 								onStop(() => {
+									if ((event as any).ended) return;
 									if (event.isRecording()) event.end()
 									// console.log(`[${name}]: end`)
 									setParent(rootSpan)
@@ -472,6 +474,7 @@ export const opentelemetry = ({
 					setParent(span)
 					onStop(({ error }) => {
 						if (error) {
+							if ((span as any).ended) return;
 							rootSpan.setStatus({
 								code: SpanStatusCode.ERROR,
 								message: error.message
@@ -726,6 +729,7 @@ export const opentelemetry = ({
 					rootSpan.setAttributes(attributes)
 
 					event.onStop(() => {
+						if ((rootSpan as any).ended) return;
 						setParent(rootSpan)
 
 						rootSpan.updateName(
