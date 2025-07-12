@@ -1,3 +1,10 @@
+# 1.3.1 - 13 Jul 2025
+Improvement:
+- [#48](https://github.com/elysiajs/opentelemetry/pull/48) add test suite and update dependencies
+- set name after response as fallback
+
+Bug fix:
+- [#47](https://github.com/elysiajs/opentelemetry/pull/47), [#49](https://github.com/elysiajs/opentelemetry/pull/49) avoid race condition "Cannot execute operation on ended Span"
 
 # 1.3.0-exp.0 - 23 Apr 2025
 Change:
