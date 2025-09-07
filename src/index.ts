@@ -496,8 +496,6 @@ export const opentelemetry = ({
 								code: SpanStatusCode.OK
 							})
 						}
-
-						span.end()
 					})
 				})
 
