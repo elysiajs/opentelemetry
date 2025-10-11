@@ -58,6 +58,13 @@ type OpenTeleMetryOptions = NonNullable<
  */
 export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 	contextManager?: ContextManager
+	/**
+	 * Optional function to determine whether a given request should be traced.
+	 *
+	 * @param req - The incoming request object to evaluate.
+	 * @returns A boolean indicating whether tracing should be enabled for this request.
+	 */
+	checkIfShouldTrace?: (req: Request) => boolean
 }
 
 export type ActiveSpanArgs<
@@ -213,6 +220,7 @@ export const opentelemetry = ({
 	serviceName = 'Elysia',
 	instrumentations,
 	contextManager,
+	checkIfShouldTrace,
 	...options
 }: ElysiaOpenTelemetryOptions = {}) => {
 	let tracer = trace.getTracer(serviceName)
@@ -265,9 +273,18 @@ export const opentelemetry = ({
 			// }
 		}
 
-		return new Elysia({
-			name: '@elysia/opentelemetry'
-		}).wrap((fn, request) => {
+	return new Elysia({
+		name: '@elysia/opentelemetry'
+	})
+		.wrap((fn, request) => {
+			const shouldTrace = checkIfShouldTrace
+				? checkIfShouldTrace(request)
+				: true
+
+			if (!shouldTrace) {
+				return fn
+			}
+
 			let headers
 			if (headerHasToJSON) {
 				// @ts-ignore bun only
@@ -496,8 +513,6 @@ export const opentelemetry = ({
 								code: SpanStatusCode.OK
 							})
 						}
-
-						span.end()
 					})
 				})
 
