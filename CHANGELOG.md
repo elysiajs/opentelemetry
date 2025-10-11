@@ -1,3 +1,8 @@
+# 1.4.1 - 12 Oct 2025
+Bug fix:
+- [#52](https://github.com/elysiajs/opentelemetry/pull/52) fix early span.end() prevents renaming of root span
+- [#51](https://github.com/elysiajs/opentelemetry/pull/51) add checkIfShouldTrace option to OpenTelemetry plugin
+
 # 1.3.1 - 13 Jul 2025
 Improvement:
 - [#48](https://github.com/elysiajs/opentelemetry/pull/48) add test suite and update dependencies
