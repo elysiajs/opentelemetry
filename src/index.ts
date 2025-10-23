@@ -494,13 +494,13 @@ export const opentelemetry = ({
 				onBeforeHandle(inspect('beforeHandle'))
 
 				onHandle(({ onStop }) => {
+					setParent(rootSpan)
 					const span = tracer.startSpan(
 						'handle',
 						{},
 						createContext(rootSpan)
 					)
 
-					setParent(span)
 					onStop(({ error }) => {
 						setParent(rootSpan)
 
