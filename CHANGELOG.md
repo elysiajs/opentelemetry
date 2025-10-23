@@ -1,3 +1,7 @@
+# 1.4.5 - 23 Oct 2025
+Improvement:
+- adjust rootSpan
+
 # 1.4.4 - 23 Oct 2025
 Improvement:
 - adjust rootSpan
