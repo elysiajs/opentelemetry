@@ -1,8 +1,8 @@
-# 1.4.4 - 23 Oct 2025
+# 1.4.3 - 23 Oct 2025
 Improvement:
 - adjust rootSpan
 
-# 1.4.3 - 23 Oct 2025
+# 1.4.2 - 23 Oct 2025
 Improvement:
 - add `startSpan`
 - use `abortSignal`
