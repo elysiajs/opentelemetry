@@ -1,3 +1,7 @@
+# 1.4.2 - 23 Oct 2025
+Improvement:
+- add `startSpan`
+
 # 1.4.1 - 12 Oct 2025
 Bug fix:
 - [#52](https://github.com/elysiajs/opentelemetry/pull/52) fix early span.end() prevents renaming of root span

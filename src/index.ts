@@ -169,6 +169,16 @@ export const getTracer = (): ReturnType<TraceAPI['getTracer']> => {
 	}
 }
 
+export const startSpan = (
+	name: string,
+	options?: SpanOptions,
+	context?: Context
+): Span => {
+	const tracer = getTracer()
+
+	return tracer.startSpan(name, options, context)
+}
+
 export const startActiveSpan: StartActiveSpan = (...args: ActiveSpanArgs) => {
 	const tracer = getTracer()
 
@@ -363,7 +373,7 @@ export const opentelemetry = ({
 										(span) => {
 											setParent(span)
 											onStop(({ error }) => {
-												if ((span as any).ended) return;
+												if ((span as any).ended) return
 												if (error) {
 													rootSpan.setStatus({
 														code: SpanStatusCode.ERROR,
@@ -404,7 +414,7 @@ export const opentelemetry = ({
 								})
 
 								onStop(() => {
-									if ((event as any).ended) return;
+									if ((event as any).ended) return
 									if (event.isRecording()) event.end()
 									// console.log(`[${name}]: end`)
 									setParent(rootSpan)
@@ -491,7 +501,7 @@ export const opentelemetry = ({
 					setParent(span)
 					onStop(({ error }) => {
 						if (error) {
-							if ((span as any).ended) return;
+							if ((span as any).ended) return
 							rootSpan.setStatus({
 								code: SpanStatusCode.ERROR,
 								message: error.message
@@ -744,7 +754,7 @@ export const opentelemetry = ({
 					rootSpan.setAttributes(attributes)
 
 					event.onStop(() => {
-						if ((rootSpan as any).ended) return;
+						if ((rootSpan as any).ended) return
 						setParent(rootSpan)
 
 						rootSpan.updateName(
@@ -756,7 +766,7 @@ export const opentelemetry = ({
 
 					// Just in case onStop is not called for whatever reason
 					onAfterResponse(() => {
-						if ((rootSpan as any).ended) return;
+						if ((rootSpan as any).ended) return
 						setParent(rootSpan)
 
 						rootSpan.updateName(
