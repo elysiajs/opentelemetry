@@ -1,3 +1,14 @@
+# 1.4.6 - 24 Oct 2025
+Improvement:
+- use cookie value instead of proxy cookie jar
+- clean up stuff
+
+Change:
+- use captialized name for lifecycle event
+
+Bug fix:
+- `Handle` not showing up
+
 # 1.4.5 - 23 Oct 2025
 Improvement:
 - adjust rootSpan

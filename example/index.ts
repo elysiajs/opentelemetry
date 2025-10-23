@@ -184,22 +184,22 @@ const app = new Elysia()
 
 // console.log(app.routes[0].compile().toString())
 
-// const api = treaty(app)
+const api = treaty(app)
 
 // await api.context
 // 	.get()
 // 	.then((x) => x.data)
 // 	.then(console.log)
 
-// const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
-// 	{
-// 		name: 'saltyaom'
-// 	},
-// 	{
-// 		query: {
-// 			hello: 'world'
-// 		}
-// 	}
-// )
+const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
+	{
+		name: 'saltyaom'
+	},
+	{
+		query: {
+			hello: 'world'
+		}
+	}
+)
 
 // console.log(error?.value)

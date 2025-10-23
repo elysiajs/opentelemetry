@@ -207,24 +207,15 @@ export const startActiveSpan: StartActiveSpan = (...args: ActiveSpanArgs) => {
 }
 
 export const record = startActiveSpan
-
-export const getCurrentSpan = (): Span | undefined => {
-	const current: Span = otelContext
-		.active()
-		// @ts-ignore
-		._currentContext?.get(contextKeySpan)
-
-	return current
-}
+export const getCurrentSpan = (): Span | undefined => trace.getActiveSpan()
 
 /**
  * Set attributes to the current span
  *
  * @returns boolean - whether the attributes are set or not
  */
-export const setAttributes = (attributes: Attributes) => {
-	return !!getCurrentSpan()?.setAttributes(attributes)
-}
+export const setAttributes = (attributes: Attributes) =>
+	!!getCurrentSpan()?.setAttributes(attributes)
 
 export const opentelemetry = ({
 	serviceName = 'Elysia',
@@ -291,22 +282,17 @@ export const opentelemetry = ({
 				? checkIfShouldTrace(request)
 				: true
 
-			if (!shouldTrace) {
-				return fn
-			}
+			if (!shouldTrace) return fn
 
-			let headers
-			if (headerHasToJSON) {
-				// @ts-ignore bun only
-				headers = request.headers.toJSON()
-			} else {
-				headers = Object.fromEntries(request.headers.entries())
-			}
+			const headers = headerHasToJSON
+				? // @ts-ignore bun only
+					request.headers.toJSON()
+				: Object.fromEntries(request.headers.entries())
 
 			const ctx = propagation.extract(otelContext.active(), headers)
 
 			return tracer.startActiveSpan(
-				'request',
+				'Root',
 				{ kind: SpanKind.SERVER },
 				ctx,
 				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
@@ -332,10 +318,7 @@ export const opentelemetry = ({
 				}
 			}) => {
 				const rootSpan = trace.getActiveSpan()!
-
 				if (!rootSpan) return
-
-				let parent = rootSpan
 
 				function setParent(span: Span) {
 					const newContext = trace.setSpan(otelContext.active(), span)
@@ -348,11 +331,9 @@ export const opentelemetry = ({
 						contextKeySpan,
 						newContext.getValue(contextKeySpan)
 					)
-
-					parent = span
 				}
 
-				function inspect(name: TraceEvent) {
+				function inspect(name: Capitalize<TraceEvent>) {
 					return function inspect({
 						onEvent,
 						total,
@@ -372,6 +353,7 @@ export const opentelemetry = ({
 										createContext(event),
 										(span) => {
 											setParent(span)
+
 											onStop(({ error }) => {
 												setParent(rootSpan)
 
@@ -416,66 +398,27 @@ export const opentelemetry = ({
 								})
 
 								onStop(() => {
+									setParent(rootSpan)
+
 									if ((event as any).ended) return
 									if (event.isRecording()) event.end()
 									// console.log(`[${name}]: end`)
-									setParent(rootSpan)
 								})
 							}
 						)
 					}
 				}
 
-				// @ts-ignore
-				context.trace = {
-					startSpan(
-						name: string
-						// options?: SpanOptions,
-						// context?: Context
-					) {
-						return tracer.startSpan(name, {}, createContext(parent))
-					},
-					startActiveSpan(...args: ActiveSpanArgs) {
-						switch (args.length) {
-							case 2:
-								return tracer.startActiveSpan(
-									args[0],
-									{},
-									createContext(parent),
-									createActiveSpanHandler(args[1])
-								)
-
-							case 3:
-								return tracer.startActiveSpan(
-									args[0],
-									args[1],
-									createContext(parent),
-									createActiveSpanHandler(args[2])
-								)
-
-							case 4:
-								return tracer.startActiveSpan(
-									args[0],
-									args[1],
-									args[2],
-									createActiveSpanHandler(args[3])
-								)
-						}
-					},
-					setAttributes(attributes: Attributes) {
-						rootSpan.setAttributes(attributes)
-					}
-				}
-
 				// @ts-expect-error private property
 				const url = context.url
-				const attributes: Record<string, string | number> = {
-					// ? Elysia Custom attribute
-					'http.request.id': id,
-					'http.request.method': method,
-					'url.path': path,
-					'url.full': url
-				}
+				const attributes: Record<string, string | number> =
+					Object.assign(Object.create(null), {
+						// ? Elysia Custom attribute
+						'http.request.id': id,
+						'http.request.method': method,
+						'url.path': path,
+						'url.full': url
+					})
 
 				// @ts-ignore private property
 				if (context.qi && context.qi !== -1)
@@ -488,21 +431,22 @@ export const opentelemetry = ({
 				if (protocolSeparator > 0)
 					attributes['url.scheme'] = url.slice(0, protocolSeparator)
 
-				onRequest(inspect('request'))
-				onParse(inspect('parse'))
-				onTransform(inspect('transform'))
-				onBeforeHandle(inspect('beforeHandle'))
+				onRequest(inspect('Request'))
+				onParse(inspect('Parse'))
+				onTransform(inspect('Transform'))
+				onBeforeHandle(inspect('BeforeHandle'))
 
 				onHandle(({ onStop }) => {
-					setParent(rootSpan)
 					const span = tracer.startSpan(
-						'handle',
+						'Handle',
 						{},
 						createContext(rootSpan)
 					)
+					setParent(span)
 
 					onStop(({ error }) => {
 						setParent(rootSpan)
+						span.end()
 
 						if (error) {
 							if ((span as any).ended) return
@@ -530,12 +474,12 @@ export const opentelemetry = ({
 					})
 				})
 
-				onAfterHandle(inspect('afterHandle'))
-				onError(inspect('error'))
-				onMapResponse(inspect('mapResponse'))
+				onAfterHandle(inspect('AfterHandle'))
+				onError(inspect('Error'))
+				onMapResponse(inspect('MapResponse'))
 
 				onAfterResponse((event) => {
-					inspect('afterResponse')(event)
+					inspect('AfterResponse')(event)
 
 					const {
 						query,
@@ -586,9 +530,8 @@ export const opentelemetry = ({
 					}
 
 					{
-						let status = context.set.status
-						if (!status) status = 200
-						else if (typeof status === 'string')
+						let status = context.set.status ?? 200
+						if (typeof status === 'string')
 							status = StatusMap[status] ?? 200
 
 						attributes['http.response.status_code'] = status
@@ -625,7 +568,7 @@ export const opentelemetry = ({
 
 					const server = context.server
 					if (server) {
-						attributes['server.port'] = server.port ?? 0
+						attributes['server.port'] = server.port ?? 80
 						attributes['server.address'] = server.url.hostname
 						attributes['server.address'] = server.url.hostname
 					}
@@ -715,7 +658,12 @@ export const opentelemetry = ({
 						// @ts-expect-error
 						attributes['client.address'] = context.ip
 					else {
-						const ip = server?.requestIP(request)
+						const ip =
+							headers['true-client-ip'] ??
+							headers['cf-connection-ip'] ??
+							headers['x-forwarded-for'] ??
+							headers['x-real-ip'] ??
+							server?.requestIP(request)
 
 						if (ip) attributes['client.address'] = ip.address
 					}
@@ -724,7 +672,7 @@ export const opentelemetry = ({
 					if (cookie) {
 						const _cookie = <Record<string, string>>{}
 
-						for (const [key, value] of Object.entries(cookie))
+						for (const [key, { value }] of Object.entries(cookie))
 							_cookie[key] = JSON.stringify(value)
 
 						attributes['http.request.cookie'] =
@@ -759,12 +707,13 @@ export const opentelemetry = ({
 
 					event.onStop(() => {
 						setParent(rootSpan)
-						if ((rootSpan as any).ended) return
-
 						rootSpan.updateName(
 							// @ts-ignore private property
 							`${method} ${context.route || context.path}`
 						)
+
+						if ((rootSpan as any).ended) return
+
 						rootSpan.end()
 					})
 				})
