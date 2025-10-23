@@ -500,6 +500,8 @@ export const opentelemetry = ({
 
 					setParent(span)
 					onStop(({ error }) => {
+						setParent(rootSpan)
+
 						if (error) {
 							if ((span as any).ended) return
 							rootSpan.setStatus({
@@ -754,8 +756,8 @@ export const opentelemetry = ({
 					rootSpan.setAttributes(attributes)
 
 					event.onStop(() => {
-						if ((rootSpan as any).ended) return
 						setParent(rootSpan)
+						if ((rootSpan as any).ended) return
 
 						rootSpan.updateName(
 							// @ts-ignore private property
@@ -767,7 +769,9 @@ export const opentelemetry = ({
 
 				// @ts-ignore
 				context.request.signal.addEventListener('abort', () => {
+					setParent(rootSpan)
 					if ((rootSpan as any).ended) return
+
 					rootSpan.setStatus({
 						code: SpanStatusCode.ERROR,
 						message: 'Request aborted'
