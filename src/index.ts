@@ -373,6 +373,8 @@ export const opentelemetry = ({
 										(span) => {
 											setParent(span)
 											onStop(({ error }) => {
+												setParent(rootSpan)
+
 												if ((span as any).ended) return
 												if (error) {
 													rootSpan.setStatus({
