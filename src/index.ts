@@ -765,6 +765,7 @@ export const opentelemetry = ({
 					})
 				})
 
+				// @ts-ignore
 				context.request.signal.addEventListener('abort', () => {
 					if ((rootSpan as any).ended) return
 					rootSpan.setStatus({
