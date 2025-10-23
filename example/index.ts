@@ -1,7 +1,13 @@
 import { Elysia, t } from 'elysia'
 import { treaty } from '@elysiajs/eden'
 
-import { getCurrentSpan, getTracer, opentelemetry, setAttributes } from '../src'
+import {
+	getCurrentSpan,
+	getTracer,
+	opentelemetry,
+	setAttributes,
+	startSpan
+} from '../src'
 import * as otel from '@opentelemetry/api'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import {
@@ -72,7 +78,7 @@ const app = new Elysia()
 						//     'X-Axiom-Dataset': Bun.env.AXIOM_DATASET
 						// }
 					})
-				),
+				)
 				// new BatchSpanProcessor(new ConsoleSpanExporter())
 			]
 		})
@@ -88,19 +94,30 @@ const app = new Elysia()
 			if (code === 'UNKNOWN') return 'An error occurred'
 		}
 	])
+	.trace(({ onAfterResponse }) => {
+		onAfterResponse(() => {
+			console.log("A")
+		})
+	})
+	.get('/stream', async function* () {
+		for (let i = 0; i < 1000; i++) {
+			yield i
+			console.log(i)
+			await Bun.sleep(3)
+		}
+	})
 	.onBeforeHandle([
 		async function isSignIn() {
-			const trace = otel.trace.getTracer('Elysia')
-			const span1 = trace.startSpan('a.sleep.0')
+			const span1 = startSpan('a.sleep.0')
 			await Bun.sleep(50)
 			span1.end()
 
-			const span2 = trace.startSpan('a.sleep.1')
+			const span2 = startSpan('a.sleep.1')
 			await Bun.sleep(25)
 			span2.end()
 		},
 		async function roleCheck() {
-			const span = getTracer().startSpan('b.sleep.0')
+			const span = startSpan('b.sleep.0')
 			await Bun.sleep(75)
 			span.end()
 		}
@@ -108,7 +125,6 @@ const app = new Elysia()
 	.post(
 		'/id/:id',
 		async ({ query }) => {
-			console.log(getCurrentSpan())
 			setAttributes({ hello: 'world' })
 
 			return getTracer().startActiveSpan(
@@ -122,7 +138,7 @@ const app = new Elysia()
 			)
 		},
 		{
-			async afterHandle({ response, error }) {
+			async afterHandle({ response }) {
 				await Bun.sleep(25)
 
 				if (response === 'Hello Elysia')
@@ -166,22 +182,24 @@ const app = new Elysia()
 	.use(plugin())
 	.listen(3000)
 
-const api = treaty(app)
+// console.log(app.routes[0].compile().toString())
+
+// const api = treaty(app)
 
 // await api.context
 // 	.get()
 // 	.then((x) => x.data)
 // 	.then(console.log)
 
-const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
-	{
-		name: 'saltyaom'
-	},
-	{
-		query: {
-			hello: 'world'
-		}
-	}
-)
+// const { data, headers, error, status } = await api.id({ id: 'hello' }).post(
+// 	{
+// 		name: 'saltyaom'
+// 	},
+// 	{
+// 		query: {
+// 			hello: 'world'
+// 		}
+// 	}
+// )
 
 // console.log(error?.value)

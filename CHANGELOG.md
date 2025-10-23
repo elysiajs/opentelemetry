@@ -1,6 +1,7 @@
 # 1.4.2 - 23 Oct 2025
 Improvement:
 - add `startSpan`
+- use `abortSignal`
 
 # 1.4.1 - 12 Oct 2025
 Bug fix:

@@ -763,18 +763,15 @@ export const opentelemetry = ({
 						)
 						rootSpan.end()
 					})
+				})
 
-					// Just in case onStop is not called for whatever reason
-					onAfterResponse(() => {
-						if ((rootSpan as any).ended) return
-						setParent(rootSpan)
-
-						rootSpan.updateName(
-							// @ts-ignore private property
-							`${method} ${context.route || context.path}`
-						)
-						rootSpan.end()
+				context.request.signal.addEventListener('abort', () => {
+					if ((rootSpan as any).ended) return
+					rootSpan.setStatus({
+						code: SpanStatusCode.ERROR,
+						message: 'Request aborted'
 					})
+					rootSpan.end()
 				})
 			}
 		)

@@ -1,6 +1,6 @@
 {
     "name": "@elysiajs/opentelemetry",
-    "version": "1.4.2",
+    "version": "1.4.3",
     "license": "MIT",
     "scripts": {
         "dev": "bun run --watch example/index.ts",
@@ -54,7 +54,7 @@
         "@opentelemetry/sdk-trace-node": "^2.0.0",
         "@opentelemetry/sdk-trace-web": "^2.0.0",
         "@types/bun": "1.2.10",
-        "elysia": "1.4.0",
+        "elysia": "1.4.13-beta.6",
         "eslint": "9.25.1",
         "tsup": "^8.4.0",
         "typescript": "^5.8.3"
