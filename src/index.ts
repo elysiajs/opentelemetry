@@ -720,7 +720,12 @@ export const opentelemetry = ({
 
 				// @ts-ignore
 				context.request.signal.addEventListener('abort', () => {
-					setParent(rootSpan)
+					if (context.route)
+						rootSpan.updateName(
+							// @ts-ignore private property
+							`${method} ${context.route || context.path}`
+						)
+
 					if ((rootSpan as any).ended) return
 
 					rootSpan.setStatus({
