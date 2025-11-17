@@ -87,16 +87,19 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 						span.end()
 						return value
 					},
-					(er) => {
+					(rejectResult) => {
 						span.setStatus({
 							code: SpanStatusCode.ERROR,
-							message: er?.message
+							message:
+								rejectResult instanceof Error
+									? rejectResult.message
+									: String(rejectResult ?? 'Unknown error')
 						})
 
-						span.recordException(er)
+						span.recordException(rejectResult)
 						span.setAttribute('error', true)
 						span.end()
-						throw er
+						throw rejectResult
 					}
 				)
 
