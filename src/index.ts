@@ -82,18 +82,27 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 			// @ts-ignore
 			if (result instanceof Promise || typeof result?.then === 'function')
 				// @ts-ignore
-				return result.then((result) => {
-					if (span.isRecording()) span.end()
+				return Promise.resolve(result).then(
+					(value) => {
+						span.end()
+						return value
+					},
+					(er) => {
+						span.setStatus({
+							code: SpanStatusCode.ERROR,
+							message: er?.message
+						})
 
-					return result
-				})
+						span.recordException(er)
+						span.setAttribute('error', true)
+						span.end()
+						throw er
+					}
+				)
 
-			if (span.isRecording()) span.end()
-
+			span.end()
 			return result
 		} catch (error) {
-			if (!span.isRecording()) throw error
-
 			const err = error as Error
 
 			span.setStatus({
@@ -102,6 +111,7 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 			})
 
 			span.recordException(err)
+			span.setAttribute('error', true)
 			span.end()
 
 			throw error
@@ -286,7 +296,7 @@ export const opentelemetry = ({
 
 			const headers = headerHasToJSON
 				? // @ts-ignore bun only
-					request.headers.toJSON()
+				  request.headers.toJSON()
 				: Object.fromEntries(request.headers.entries())
 
 			const ctx = propagation.extract(otelContext.active(), headers)
