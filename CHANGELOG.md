@@ -1,3 +1,7 @@
+# 1.4.7 - 18 Nov 2025
+Improvement:
+- [#59](https://github.com/elysiajs/opentelemetry/pull/59) enhance error handling in createActiveSpanHandler
+
 # 1.4.6 - 24 Oct 2025
 Improvement:
 - use cookie value instead of proxy cookie jar
