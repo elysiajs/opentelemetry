@@ -97,7 +97,6 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 						})
 
 						span.recordException(rejectResult)
-						span.setAttribute('error', true)
 						span.end()
 						throw rejectResult
 					}
@@ -112,9 +111,7 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 				code: SpanStatusCode.ERROR,
 				message: err?.message
 			})
-
 			span.recordException(err)
-			span.setAttribute('error', true)
 			span.end()
 
 			throw error
