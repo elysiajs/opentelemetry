@@ -93,7 +93,9 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 							message:
 								rejectResult instanceof Error
 									? rejectResult.message
-									: String(rejectResult ?? 'Unknown error')
+									: JSON.stringify(
+											rejectResult ?? 'Unknown error'
+									  )
 						})
 
 						span.recordException(rejectResult)
