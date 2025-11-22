@@ -3,7 +3,7 @@ import { opentelemetry, getCurrentSpan } from '../src'
 import { describe, expect, it } from 'bun:test'
 
 // Test constants
-const SLOW_OPERATION_TIMEOUT = 1000
+const SLOW_OPERATION_TIMEOUT = 350
 const ABORT_DELAY = 10
 const CLEANUP_DELAY = 100
 
@@ -53,7 +53,7 @@ describe('Abort Request Handling', () => {
 
 		// Get the last two trace IDs (from the successful requests)
 		const lastTwoTraceIds = traceIds.slice(-2)
-		
+
 		// Each request should have a unique trace ID
 		expect(lastTwoTraceIds[0]).toBeDefined()
 		expect(lastTwoTraceIds[1]).toBeDefined()

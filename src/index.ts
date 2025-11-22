@@ -671,7 +671,11 @@ export const opentelemetry = ({
 							headers['x-real-ip'] ??
 							server?.requestIP(request)
 
-						if (ip) attributes['client.address'] = ip.address
+						if (ip)
+							attributes['client.address'] =
+								typeof ip === 'string'
+									? ip
+									: (ip.address ?? ip.toString())
 					}
 
 					// ? Elysia Custom attribute
