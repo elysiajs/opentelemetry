@@ -487,12 +487,9 @@ export const opentelemetry = ({
 				})
 
 				onAfterHandle(inspect('AfterHandle'))
-				onError(inspect('Error'))
-				onMapResponse(inspect('MapResponse'))
-
-				onAfterResponse((event) => {
-					inspect('AfterResponse')(event)
-
+				
+				// Helper function to finalize span with attributes and end it
+				const finalizeSpan = (event: TraceProcess<'begin', true>) => {
 					const {
 						query,
 						params,
@@ -728,6 +725,17 @@ export const opentelemetry = ({
 
 						rootSpan.end()
 					})
+				}
+
+				onError((event) => {
+					inspect('Error')(event)
+					finalizeSpan(event)
+				})
+				onMapResponse(inspect('MapResponse'))
+
+				onAfterResponse((event) => {
+					inspect('AfterResponse')(event)
+					finalizeSpan(event)
 				})
 
 				// @ts-ignore
