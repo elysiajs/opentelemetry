@@ -95,7 +95,7 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 									? rejectResult.message
 									: JSON.stringify(
 											rejectResult ?? 'Unknown error'
-									  )
+										)
 						})
 
 						span.recordException(rejectResult)
@@ -298,7 +298,7 @@ export const opentelemetry = ({
 
 			const headers = headerHasToJSON
 				? // @ts-ignore bun only
-				  request.headers.toJSON()
+					request.headers.toJSON()
 				: Object.fromEntries(request.headers.entries())
 
 			const ctx = propagation.extract(otelContext.active(), headers)
@@ -333,6 +333,12 @@ export const opentelemetry = ({
 				if (!rootSpan) return
 
 				function setParent(span: Span) {
+					// @ts-ignore
+					if (span.ended) return
+
+					// @ts-ignore
+					if (rootSpan.ended) return void span.end()
+
 					const newContext = trace.setSpan(otelContext.active(), span)
 
 					const currentContext: Map<Symbol, unknown> =
@@ -351,13 +357,24 @@ export const opentelemetry = ({
 						total,
 						onStop
 					}: TraceProcess<'begin', true>) {
-						if (total === 0) return
+						if (
+							total === 0 ||
+							// @ts-ignore
+							rootSpan.ended
+						)
+							return
 
 						tracer.startActiveSpan(
 							name,
 							{},
 							createContext(rootSpan),
 							(event) => {
+								if (
+									// @ts-ignore
+									rootSpan.ended
+								)
+									return
+
 								onEvent(({ name, onStop }) => {
 									tracer.startActiveSpan(
 										name,
@@ -389,10 +406,6 @@ export const opentelemetry = ({
 														code: SpanStatusCode.ERROR,
 														message: error.message
 													})
-
-													// Early exit from event
-													// console.log("Panic")
-													event.end()
 												} else {
 													rootSpan.setStatus({
 														code: SpanStatusCode.OK
@@ -413,8 +426,7 @@ export const opentelemetry = ({
 									setParent(rootSpan)
 
 									if ((event as any).ended) return
-									if (event.isRecording()) event.end()
-									// console.log(`[${name}]: end`)
+									event.end()
 								})
 							}
 						)
@@ -458,10 +470,11 @@ export const opentelemetry = ({
 
 					onStop(({ error }) => {
 						setParent(rootSpan)
-						span.end()
+
+						// @ts-ignore
+						if ((span as any).ended || rootSpan.ended) return
 
 						if (error) {
-							if ((span as any).ended) return
 							rootSpan.setStatus({
 								code: SpanStatusCode.ERROR,
 								message: error.message
@@ -483,63 +496,37 @@ export const opentelemetry = ({
 								code: SpanStatusCode.OK
 							})
 						}
+
+						span.end()
 					})
 				})
 
 				onAfterHandle(inspect('AfterHandle'))
-				onError(inspect('Error'))
+				onError((event) => {
+					inspect('Error')(event)
+
+					event.onStop(() => {
+						setParent(rootSpan)
+						if ((rootSpan as any).ended) return
+
+						if (
+							// @ts-ignore
+							!rootSpan.ended
+						)
+							rootSpan.end()
+					})
+				})
 				onMapResponse(inspect('MapResponse'))
+				onTransform(() => {
+					const { cookie, body, request, route, path } = context
 
-				onAfterResponse((event) => {
-					inspect('AfterResponse')(event)
-
-					const {
-						query,
-						params,
-						cookie,
-						body,
-						request,
-						headers: parsedHeaders,
-						// @ts-expect-error
-						response
-					} = context
+					if (route)
+						rootSpan.updateName(
+							// @ts-ignore private property
+							`${method} ${route || path}`
+						)
 
 					if (context.route) attributes['http.route'] = context.route
-
-					switch (typeof response) {
-						case 'object':
-							if (response instanceof Response) {
-								// Unable to access as async, skip
-							} else if (response instanceof Uint8Array)
-								attributes['http.response.body.size'] =
-									response.length
-							else if (response instanceof ArrayBuffer)
-								attributes['http.response.body.size'] =
-									response.byteLength
-							else if (response instanceof Blob)
-								attributes['http.response.body.size'] =
-									response.size
-							else {
-								const value = JSON.stringify(response)
-
-								attributes['http.response.body'] = value
-								attributes['http.response.body.size'] =
-									value.length
-							}
-
-							break
-
-						default:
-							if (response === undefined || response === null)
-								attributes['http.response.body.size'] = 0
-							else {
-								const value = response.toString()
-
-								attributes['http.response.body'] = value
-								attributes['http.response.body.size'] =
-									value.length
-							}
-					}
 
 					{
 						let status = context.set.status ?? 200
@@ -716,28 +703,66 @@ export const opentelemetry = ({
 					}
 
 					rootSpan.setAttributes(attributes)
+				})
+
+				onMapResponse(() => {
+					// @ts-ignore
+					const response = context.responseValue
+					if (!response) return
+
+					switch (typeof response) {
+						case 'object':
+							if (response instanceof Response) {
+								// Unable to access as async, skip
+							} else if (response instanceof Uint8Array)
+								attributes['http.response.body.size'] =
+									response.length
+							else if (response instanceof ArrayBuffer)
+								attributes['http.response.body.size'] =
+									response.byteLength
+							else if (response instanceof Blob)
+								attributes['http.response.body.size'] =
+									response.size
+							else {
+								const value = JSON.stringify(response)
+
+								attributes['http.response.body'] = value
+								attributes['http.response.body.size'] =
+									value.length
+							}
+
+							break
+
+						default:
+							if (response === undefined || response === null)
+								attributes['http.response.body.size'] = 0
+							else {
+								const value = response.toString()
+
+								attributes['http.response.body'] = value
+								attributes['http.response.body.size'] =
+									value.length
+							}
+					}
+				})
+
+				onAfterResponse((event) => {
+					inspect('AfterResponse')(event)
 
 					event.onStop(() => {
 						setParent(rootSpan)
-						rootSpan.updateName(
-							// @ts-ignore private property
-							`${method} ${context.route || context.path}`
-						)
-
 						if ((rootSpan as any).ended) return
 
-						rootSpan.end()
+						if (
+							// @ts-ignore
+							!rootSpan.ended
+						)
+							rootSpan.end()
 					})
 				})
 
 				// @ts-ignore
 				context.request.signal.addEventListener('abort', () => {
-					if (context.route)
-						rootSpan.updateName(
-							// @ts-ignore private property
-							`${method} ${context.route || context.path}`
-						)
-
 					if ((rootSpan as any).ended) return
 
 					rootSpan.setStatus({

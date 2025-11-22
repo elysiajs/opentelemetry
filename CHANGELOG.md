@@ -1,3 +1,8 @@
+# 1.4.8 - 22 Nov 2025
+- [#58](https://github.com/elysiajs/opentelemetry/issues/58) fix error log when `OTEL_LOG_LEVEL` is set to `warn`
+- [#57](https://github.com/elysiajs/opentelemetry/issues/57), [#53](https://github.com/elysiajs/opentelemetry/issues/53) possible fix for aborted request causes all future requests to share same trace ID?
+- [#56](https://github.com/elysiajs/opentelemetry/issues/56) Root span doesn't end when the request throws error, triggering a custom onError handler
+
 # 1.4.7 - 18 Nov 2025
 Improvement:
 - [#59](https://github.com/elysiajs/opentelemetry/pull/59) enhance error handling in createActiveSpanHandler
