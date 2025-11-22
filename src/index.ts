@@ -311,8 +311,9 @@ export const opentelemetry = ({
 					const spanContext = trace.setSpan(ctx, rootSpan)
 					// Execute fn within the span's context using with() instead of bind()
 					// This ensures proper cleanup when the function completes or errors
-					return (...args: any[]) => 
-						otelContext.with(spanContext, () => fn(...args))
+					return (...args: any[]) => {
+						return otelContext.with(spanContext, () => fn(...args))
+					}
 				}
 			)
 		})

@@ -2,6 +2,11 @@ import { Elysia } from 'elysia'
 import { opentelemetry, getCurrentSpan } from '../src'
 import { describe, expect, it } from 'bun:test'
 
+// Test constants
+const SLOW_OPERATION_TIMEOUT = 1000
+const ABORT_DELAY = 10
+const CLEANUP_DELAY = 100
+
 describe('Abort Request Handling', () => {
 	it('should create unique trace IDs for requests after an aborted request', async () => {
 		const traceIds: string[] = []
@@ -13,7 +18,7 @@ describe('Abort Request Handling', () => {
 				if (span) {
 					traceIds.push(span.spanContext().traceId)
 				}
-				await new Promise((res) => setTimeout(res, 1000))
+				await new Promise((res) => setTimeout(res, SLOW_OPERATION_TIMEOUT))
 				return { success: true }
 			})
 
@@ -28,12 +33,12 @@ describe('Abort Request Handling', () => {
 			.catch(() => {})
 
 		// Abort after a short delay
-		await new Promise((res) => setTimeout(res, 10))
+		await new Promise((res) => setTimeout(res, ABORT_DELAY))
 		abortController.abort()
 
 		// Wait a bit for abort to process
 		await abortPromise
-		await new Promise((res) => setTimeout(res, 100))
+		await new Promise((res) => setTimeout(res, CLEANUP_DELAY))
 
 		// Make subsequent requests without traceparent header
 		const response1 = await testApp.handle(new Request('http://localhost/'))
@@ -68,7 +73,7 @@ describe('Abort Request Handling', () => {
 					traceIds.push(traceId)
 					abortedTraceId = traceId
 				}
-				await new Promise((res) => setTimeout(res, 1000))
+				await new Promise((res) => setTimeout(res, SLOW_OPERATION_TIMEOUT))
 				return { success: true }
 			})
 			.get('/fast', () => {
@@ -90,12 +95,12 @@ describe('Abort Request Handling', () => {
 			.catch(() => {})
 
 		// Abort after a short delay
-		await new Promise((res) => setTimeout(res, 10))
+		await new Promise((res) => setTimeout(res, ABORT_DELAY))
 		abortController.abort()
 
 		// Wait for abort to process
 		await abortPromise
-		await new Promise((res) => setTimeout(res, 100))
+		await new Promise((res) => setTimeout(res, CLEANUP_DELAY))
 
 		// Make requests to /fast without traceparent header
 		const response1 = await testApp.handle(
