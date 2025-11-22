@@ -307,7 +307,14 @@ export const opentelemetry = ({
 				'Root',
 				{ kind: SpanKind.SERVER },
 				ctx,
-				(rootSpan) => otelContext.bind(trace.setSpan(ctx, rootSpan), fn)
+				(rootSpan) => {
+					const spanContext = trace.setSpan(ctx, rootSpan)
+					// Execute fn within the span's context using with() instead of bind()
+					// This ensures proper cleanup when the function completes or errors
+					return (...args: any[]) => {
+						return otelContext.with(spanContext, () => fn(...args))
+					}
+				}
 			)
 		})
 		.trace(
