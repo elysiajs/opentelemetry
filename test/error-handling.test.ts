@@ -48,7 +48,7 @@ describe('Error Handling with OpenTelemetry', () => {
 			.onError(({ error }) => {
 				errorHandlerCalled = true
 				return {
-					error: error.message
+					error: error instanceof Error ? error.message : String(error)
 				}
 			})
 			.get('/error-with-handler', () => {
@@ -93,7 +93,7 @@ describe('Error Handling with OpenTelemetry', () => {
 					spanHasError = span.isRecording()
 				}
 				return {
-					error: error.message
+					error: error instanceof Error ? error.message : String(error)
 				}
 			})
 			.get('/error-details', () => {
@@ -130,7 +130,7 @@ describe('Error Handling with OpenTelemetry', () => {
 					rootSpanId = span.spanContext().spanId
 				}
 				return {
-					error: error.message
+					error: error instanceof Error ? error.message : String(error)
 				}
 			})
 			.get('/multiple-handlers', () => {
@@ -155,7 +155,7 @@ describe('Error Handling with OpenTelemetry', () => {
 			.use(opentelemetry({ serviceName: 'async-error-test' }))
 			.onError(({ error }) => {
 				errorHandlerCalled = true
-				return { error: error.message }
+				return { error: error instanceof Error ? error.message : String(error) }
 			})
 			.get('/async-error', async () => {
 				const span = trace.getActiveSpan()
@@ -198,11 +198,11 @@ describe('Error Handling with OpenTelemetry', () => {
 			})
 			.onError(({ error, code }) => {
 				errorHandlerCalled = true
-				errorType = code
+				errorType = String(code)
 				if (code === 'CUSTOM_ERROR') {
-					return { customError: error.message }
+					return { customError: error instanceof Error ? error.message : String(error) }
 				}
-				return { error: error.message }
+				return { error: error instanceof Error ? error.message : String(error) }
 			})
 			.get('/custom-error', () => {
 				throw new CustomError('Custom error occurred')
