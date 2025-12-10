@@ -1,3 +1,7 @@
+# 1.4.9 - 11 Dec 2025
+- [#63](https://github.com/elysiajs/opentelemetry/issues/63) http.response.status_code always reported as 200
+- [#62](https://github.com/elysiajs/opentelemetry/issues/62) child span not ended when Root HTTP request is aborted
+
 # 1.4.8 - 22 Nov 2025
 - [#58](https://github.com/elysiajs/opentelemetry/issues/58) fix error log when `OTEL_LOG_LEVEL` is set to `warn`
 - [#57](https://github.com/elysiajs/opentelemetry/issues/57), [#53](https://github.com/elysiajs/opentelemetry/issues/53) possible fix for aborted request causes all future requests to share same trace ID?

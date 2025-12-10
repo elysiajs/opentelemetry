@@ -535,14 +535,6 @@ export const opentelemetry = ({
 
 					if (context.route) attributes['http.route'] = context.route
 
-					{
-						let status = context.set.status ?? 200
-						if (typeof status === 'string')
-							status = StatusMap[status] ?? 200
-
-						attributes['http.response.status_code'] = status
-					}
-
 					/**
 					 * ? Caution: This is not a standard way to get content-length
 					 *
@@ -721,6 +713,14 @@ export const opentelemetry = ({
 					const response = context.responseValue
 					if (!response) return
 
+					{
+						let status = context.set.status ?? 200
+						if (typeof status === 'string')
+							status = StatusMap[status] ?? 200
+
+						attributes['http.response.status_code'] = status
+					}
+
 					switch (typeof response) {
 						case 'object':
 							if (response instanceof Response) {
@@ -760,6 +760,14 @@ export const opentelemetry = ({
 				onAfterResponse((event) => {
 					inspect('AfterResponse')(event)
 
+					{
+						let status = context.set.status ?? 200
+						if (typeof status === 'string')
+							status = StatusMap[status] ?? 200
+
+						attributes['http.response.status_code'] = status
+					}
+
 					event.onStop(() => {
 						setParent(rootSpan)
 						if ((rootSpan as any).ended) return
@@ -774,6 +782,9 @@ export const opentelemetry = ({
 
 				// @ts-ignore
 				context.request.signal.addEventListener('abort', () => {
+					const active = trace.getActiveSpan()
+					if (active && !(active as any).ended) active.end()
+
 					if ((rootSpan as any).ended) return
 
 					rootSpan.setStatus({
