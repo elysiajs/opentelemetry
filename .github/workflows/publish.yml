@@ -43,7 +43,6 @@ jobs:
       - name: Test
         run: bun run test
 
-	  # https://github.com/actions/setup-node/issues/1440#issuecomment-3571890875
       - name: 'Publish'
         run: |
           NODE_AUTH_TOKEN="" npm publish --provenance --access=public
