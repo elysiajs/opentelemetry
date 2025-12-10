@@ -685,6 +685,7 @@ export const opentelemetry = ({
 				})
 
 				onMapResponse(() => {
+					const body = context.body
 					if (body !== undefined && body !== null) {
 						const value =
 							typeof body === 'object'
@@ -720,40 +721,40 @@ export const opentelemetry = ({
 					// @ts-ignore
 					const response = context.responseValue
 					if (response !== undefined)
-					switch (typeof response) {
-						case 'object':
-							if (response instanceof Response) {
-								// Unable to access as async, skip
-							} else if (response instanceof Uint8Array)
-								attributes['http.response.body.size'] =
-									response.length
-							else if (response instanceof ArrayBuffer)
-								attributes['http.response.body.size'] =
-									response.byteLength
-							else if (response instanceof Blob)
-								attributes['http.response.body.size'] =
-									response.size
-							else {
-								const value = JSON.stringify(response)
+						switch (typeof response) {
+							case 'object':
+								if (response instanceof Response) {
+									// Unable to access as async, skip
+								} else if (response instanceof Uint8Array)
+									attributes['http.response.body.size'] =
+										response.length
+								else if (response instanceof ArrayBuffer)
+									attributes['http.response.body.size'] =
+										response.byteLength
+								else if (response instanceof Blob)
+									attributes['http.response.body.size'] =
+										response.size
+								else {
+									const value = JSON.stringify(response)
 
-								attributes['http.response.body'] = value
-								attributes['http.response.body.size'] =
-									value.length
-							}
+									attributes['http.response.body'] = value
+									attributes['http.response.body.size'] =
+										value.length
+								}
 
-							break
+								break
 
-						default:
-							if (response === undefined || response === null)
-								attributes['http.response.body.size'] = 0
-							else {
-								const value = response.toString()
+							default:
+								if (response === undefined || response === null)
+									attributes['http.response.body.size'] = 0
+								else {
+									const value = response.toString()
 
-								attributes['http.response.body'] = value
-								attributes['http.response.body.size'] =
-									value.length
-							}
-					}
+									attributes['http.response.body'] = value
+									attributes['http.response.body.size'] =
+										value.length
+								}
+						}
 				})
 
 				onAfterResponse((event) => {
