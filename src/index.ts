@@ -768,6 +768,7 @@ export const opentelemetry = ({
 						attributes['http.response.status_code'] = status
 					}
 
+					const body = context.body
 					if (body !== undefined && body !== null) {
 						const value =
 							typeof body === 'object'
