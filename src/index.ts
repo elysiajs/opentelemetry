@@ -681,6 +681,10 @@ export const opentelemetry = ({
 							JSON.stringify(_cookie)
 					}
 
+					rootSpan.setAttributes(attributes)
+				})
+
+				onMapResponse(() => {
 					if (body !== undefined && body !== null) {
 						const value =
 							typeof body === 'object'
@@ -705,14 +709,6 @@ export const opentelemetry = ({
 						}
 					}
 
-					rootSpan.setAttributes(attributes)
-				})
-
-				onMapResponse(() => {
-					// @ts-ignore
-					const response = context.responseValue
-					if (!response) return
-
 					{
 						let status = context.set.status ?? 200
 						if (typeof status === 'string')
@@ -721,6 +717,9 @@ export const opentelemetry = ({
 						attributes['http.response.status_code'] = status
 					}
 
+					// @ts-ignore
+					const response = context.responseValue
+					if (response !== undefined)
 					switch (typeof response) {
 						case 'object':
 							if (response instanceof Response) {
@@ -766,6 +765,30 @@ export const opentelemetry = ({
 							status = StatusMap[status] ?? 200
 
 						attributes['http.response.status_code'] = status
+					}
+
+					if (body !== undefined && body !== null) {
+						const value =
+							typeof body === 'object'
+								? JSON.stringify(body)
+								: body.toString()
+
+						attributes['http.request.body'] = value
+
+						if (typeof body === 'object') {
+							if (body instanceof Uint8Array)
+								attributes['http.request.body.size'] =
+									body.length
+							else if (body instanceof ArrayBuffer)
+								attributes['http.request.body.size'] =
+									body.byteLength
+							else if (body instanceof Blob)
+								attributes['http.request.body.size'] = body.size
+
+							attributes['http.request.body.size'] = value.length
+						} else {
+							attributes['http.request.body.size'] = value.length
+						}
 					}
 
 					event.onStop(() => {
