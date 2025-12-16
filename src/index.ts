@@ -755,6 +755,16 @@ export const opentelemetry = ({
 										value.length
 								}
 						}
+
+						if (!rootSpan.ended) {
+							const statusCode = attributes["http.response.status_code"];
+							if (typeof statusCode === "number" && statusCode >= 500) {
+								rootSpan.setStatus({
+									code: SpanStatusCode.ERROR
+								});
+							}
+							rootSpan.setAttributes(attributes);
+						}
 				})
 
 				onAfterResponse((event) => {
@@ -791,6 +801,16 @@ export const opentelemetry = ({
 						} else {
 							attributes['http.request.body.size'] = value.length
 						}
+					}
+
+					if (!rootSpan.ended) {
+						const statusCode = attributes["http.response.status_code"];
+						if (typeof statusCode === "number" && statusCode >= 500) {
+							rootSpan.setStatus({
+								code: SpanStatusCode.ERROR
+							});
+						}
+						rootSpan.setAttributes(attributes);
 					}
 
 					event.onStop(() => {
