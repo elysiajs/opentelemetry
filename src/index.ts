@@ -512,9 +512,27 @@ export const opentelemetry = ({
 				onError((event) => {
 					inspect('Error')(event)
 
-					event.onStop(() => {
+					event.onStop(({ error }) => {
 						setParent(rootSpan)
 						if ((rootSpan as any).ended) return
+
+						{
+							let status = context.set.status;
+							if (typeof status === "string") {
+								status = StatusMap[status];
+							} else if (typeof status !== "number" && typeof (error == null ? void 0 : error.status) === "number") {
+								status = error.status;
+							}
+							if (typeof status === "number") {
+								attributes["http.response.status_code"] = status;
+								if (status >= 500) {
+									rootSpan.setStatus({
+										code: SpanStatusCode.ERROR
+									});
+								}
+							}
+							rootSpan.setAttributes(attributes);
+						}
 
 						if (
 							// @ts-ignore
