@@ -1,6 +1,7 @@
 # 1.4.10 - 25 Dec 2025
 Bug fix:
 - intercept `body` on `parse`
+- [#64](https://github.com/elysiajs/opentelemetry/pull/64) attaching attributes
 
 # 1.4.9 - 11 Dec 2025
 Bug fix:
