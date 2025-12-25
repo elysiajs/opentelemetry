@@ -517,21 +517,28 @@ export const opentelemetry = ({
 						if ((rootSpan as any).ended) return
 
 						{
-							let status = context.set.status;
-							if (typeof status === "string") {
-								status = StatusMap[status];
-							} else if (typeof status !== "number" && typeof (error == null ? void 0 : error.status) === "number") {
-								status = error.status;
-							}
-							if (typeof status === "number") {
-								attributes["http.response.status_code"] = status;
-								if (status >= 500) {
+							let status = context.set.status
+
+							if (typeof status === 'string') {
+								status = StatusMap[status]
+							} else if (
+								typeof status !== 'number' &&
+								// @ts-ignore
+								typeof error?.status === 'number'
+							)
+								// @ts-ignore
+								status = error.status
+
+							if (typeof status === 'number') {
+								attributes['http.response.status_code'] = status
+
+								if (status >= 500)
 									rootSpan.setStatus({
 										code: SpanStatusCode.ERROR
-									});
-								}
+									})
 							}
-							rootSpan.setAttributes(attributes);
+
+							rootSpan.setAttributes(attributes)
 						}
 
 						if (
@@ -801,15 +808,19 @@ export const opentelemetry = ({
 								}
 						}
 
-						if (!rootSpan.ended) {
-							const statusCode = attributes["http.response.status_code"];
-							if (typeof statusCode === "number" && statusCode >= 500) {
-								rootSpan.setStatus({
-									code: SpanStatusCode.ERROR
-								});
-							}
-							rootSpan.setAttributes(attributes);
+					if (!(rootSpan as any).ended) {
+						const statusCode =
+							attributes['http.response.status_code']
+						if (
+							typeof statusCode === 'number' &&
+							statusCode >= 500
+						) {
+							rootSpan.setStatus({
+								code: SpanStatusCode.ERROR
+							})
 						}
+						rootSpan.setAttributes(attributes)
+					}
 				})
 
 				onAfterResponse((event) => {
@@ -848,14 +859,19 @@ export const opentelemetry = ({
 						}
 					}
 
-					if (!rootSpan.ended) {
-						const statusCode = attributes["http.response.status_code"];
-						if (typeof statusCode === "number" && statusCode >= 500) {
+					if (!(rootSpan as any).ended) {
+						const statusCode =
+							attributes['http.response.status_code']
+
+						if (
+							typeof statusCode === 'number' &&
+							statusCode >= 500
+						)
 							rootSpan.setStatus({
 								code: SpanStatusCode.ERROR
-							});
-						}
-						rootSpan.setAttributes(attributes);
+							})
+
+						rootSpan.setAttributes(attributes)
 					}
 
 					event.onStop(() => {
