@@ -525,7 +525,7 @@ export const opentelemetry = ({
 				})
 				onMapResponse(inspect('MapResponse'))
 				onTransform(() => {
-					const { cookie, body, request, route, path } = context
+					const { cookie, request, route, path } = context
 
 					if (route)
 						rootSpan.updateName(
@@ -682,6 +682,33 @@ export const opentelemetry = ({
 					}
 
 					rootSpan.setAttributes(attributes)
+				})
+
+				onParse(() => {
+					const body = context.body
+					if (body !== undefined && body !== null) {
+						const value =
+							typeof body === 'object'
+								? JSON.stringify(body)
+								: body.toString()
+
+						attributes['http.request.body'] = value
+
+						if (typeof body === 'object') {
+							if (body instanceof Uint8Array)
+								attributes['http.request.body.size'] =
+									body.length
+							else if (body instanceof ArrayBuffer)
+								attributes['http.request.body.size'] =
+									body.byteLength
+							else if (body instanceof Blob)
+								attributes['http.request.body.size'] = body.size
+
+							attributes['http.request.body.size'] = value.length
+						} else {
+							attributes['http.request.body.size'] = value.length
+						}
+					}
 				})
 
 				onMapResponse(() => {

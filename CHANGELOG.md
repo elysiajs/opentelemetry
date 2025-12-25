@@ -1,3 +1,7 @@
+# 1.4.10 - 25 Dec 2025
+Bug fix:
+- intercept `body` on `parse`
+
 # 1.4.9 - 11 Dec 2025
 Bug fix:
 - [#63](https://github.com/elysiajs/opentelemetry/issues/63) http.response.status_code always reported as 200
