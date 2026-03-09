@@ -4,13 +4,27 @@ import {
 	getTracer,
 	startActiveSpan,
 	setAttributes,
-	getCurrentSpan
+	shouldStartNodeSDK
 } from '../src'
 import { describe, expect, it } from 'bun:test'
-import { trace, SpanStatusCode } from '@opentelemetry/api'
-import { captureSpanData, req } from './test-setup'
+import { trace } from '@opentelemetry/api'
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
+import { req } from './test-setup'
 
 describe('Core OpenTelemetry Plugin', () => {
+	it('should start NodeSDK when the global tracer provider is still noop', () => {
+		trace.disable()
+
+		expect(shouldStartNodeSDK(trace.getTracerProvider())).toBe(true)
+	})
+
+	it('should not start NodeSDK when a delegated tracer provider is already registered', () => {
+		trace.disable()
+		new NodeTracerProvider().register()
+
+		expect(shouldStartNodeSDK(trace.getTracerProvider())).toBe(false)
+	})
+
 	it('should initialize plugin without options', () => {
 		expect(typeof opentelemetry).toBe('function')
 

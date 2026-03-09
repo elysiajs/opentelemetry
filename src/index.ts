@@ -10,8 +10,8 @@ import {
 	type Span,
 	type Attributes,
 	TraceAPI,
-	ProxyTracer,
-	SpanKind
+	SpanKind,
+	TracerProvider
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -140,6 +140,16 @@ const isNotEmpty = (obj?: Object) => {
 	return false
 }
 
+export const shouldStartNodeSDK = (provider: TracerProvider) => {
+	const delegate = (
+		provider as {
+			getDelegate?: () => { constructor?: { name?: string } } | undefined
+		}
+	).getDelegate?.()
+
+	return delegate?.constructor?.name === 'NoopTracerProvider'
+}
+
 export type Tracer = ReturnType<TraceAPI['getTracer']>
 export type StartSpan = Tracer['startSpan']
 export type StartActiveSpan = Tracer['startActiveSpan']
@@ -238,7 +248,7 @@ export const opentelemetry = ({
 }: ElysiaOpenTelemetryOptions = {}) => {
 	let tracer = trace.getTracer(serviceName)
 
-	if (tracer instanceof ProxyTracer) {
+	if (shouldStartNodeSDK(trace.getTracerProvider())) {
 		const sdk = new NodeSDK({
 			...options,
 			serviceName,
