@@ -11,7 +11,8 @@ import {
 	type Attributes,
 	TraceAPI,
 	SpanKind,
-	TracerProvider
+	TracerProvider,
+	ProxyTracerProvider
 } from '@opentelemetry/api'
 
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -141,13 +142,10 @@ const isNotEmpty = (obj?: Object) => {
 }
 
 export const shouldStartNodeSDK = (provider: TracerProvider) => {
-	const delegate = (
-		provider as {
-			getDelegate?: () => { constructor?: { name?: string } } | undefined
-		}
-	).getDelegate?.()
-
-	return delegate?.constructor?.name === 'NoopTracerProvider'
+	return (
+		provider instanceof ProxyTracerProvider &&
+		provider.getDelegateTracer('check') === undefined
+	)
 }
 
 export type Tracer = ReturnType<TraceAPI['getTracer']>

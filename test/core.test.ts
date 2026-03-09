@@ -20,9 +20,12 @@ describe('Core OpenTelemetry Plugin', () => {
 
 	it('should not start NodeSDK when a delegated tracer provider is already registered', () => {
 		trace.disable()
-		new NodeTracerProvider().register()
-
-		expect(shouldStartNodeSDK(trace.getTracerProvider())).toBe(false)
+		try {
+			new NodeTracerProvider().register()
+			expect(shouldStartNodeSDK(trace.getTracerProvider())).toBe(false)
+		} finally {
+			trace.disable()
+		}
 	})
 
 	it('should initialize plugin without options', () => {
