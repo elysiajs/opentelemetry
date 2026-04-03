@@ -1,3 +1,10 @@
+# 1.4.11 - 3 Apr 2026
+Improvement:
+- [#72](https://github.com/elysiajs/opentelemetry/pull/72) skip redundant child span when lifecycle phase has single hook
+
+Bug fix:
+- [#71](https://github.com/elysiajs/opentelemetry/pull/71) NodeSDK initialization logic 
+
 # 1.4.10 - 25 Dec 2025
 Bug fix:
 - intercept `body` on `parse`
