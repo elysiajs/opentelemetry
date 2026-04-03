@@ -382,51 +382,56 @@ export const opentelemetry = ({
 								)
 									return
 
-								onEvent(({ name, onStop }) => {
-									tracer.startActiveSpan(
+							onEvent(({ name, onStop }) => {
+								const useChildSpan = total > 1
+								let span: Span
+								if (useChildSpan) {
+									span = tracer.startSpan(
 										name,
 										{},
-										createContext(event),
-										(span) => {
-											setParent(span)
+										createContext(event)
+									)
+									setParent(span)
+								} else {
+									setParent(event)
+									span = event
+								}
 
-											onStop(({ error }) => {
-												setParent(rootSpan)
+								onStop(({ error }) => {
+										setParent(rootSpan)
 
-												if ((span as any).ended) return
-												if (error) {
-													rootSpan.setStatus({
-														code: SpanStatusCode.ERROR,
-														message: error.message
-													})
+										if ((span as any).ended || (rootSpan as any).ended) return
+										if (error) {
+											rootSpan.setStatus({
+												code: SpanStatusCode.ERROR,
+												message: error.message
+											})
 
-													span.setAttributes({
-														'error.type':
-															error.constructor
-																?.name ??
-															error.name,
-														'error.stack':
-															error.stack
-													})
+											span.setAttributes({
+												'error.type':
+													error.constructor
+														?.name ??
+													error.name,
+												'error.stack':
+													error.stack
+											})
 
-													span.setStatus({
-														code: SpanStatusCode.ERROR,
-														message: error.message
-													})
-												} else {
-													rootSpan.setStatus({
-														code: SpanStatusCode.OK
-													})
+											span.setStatus({
+												code: SpanStatusCode.ERROR,
+												message: error.message
+											})
+										} else {
+											rootSpan.setStatus({
+												code: SpanStatusCode.OK
+											})
 
-													span.setStatus({
-														code: SpanStatusCode.OK
-													})
-												}
-
-												span.end()
+											span.setStatus({
+												code: SpanStatusCode.OK
 											})
 										}
-									)
+
+										if (useChildSpan) span.end()
+									})
 								})
 
 								onStop(() => {
