@@ -162,6 +162,29 @@ describe('Span header attributes (opt-in allow-list)', () => {
 		expect(attrs['http.request.cookie']).toBeUndefined()
 	})
 
+	it('does not record response headers on the span by default', async () => {
+		const app = new Elysia()
+			.use(opentelemetry({ serviceName: 'no-response-headers-default' }))
+			.onRequest(({ set }) => {
+				set.headers['Set-Cookie'] = 'session=abc; HttpOnly'
+				set.headers['X-Custom-Resp'] = 'sensitive'
+			})
+			.get('/r', () => 'ok')
+
+		await app.handle(new Request('http://localhost/r'))
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
+
+		expect(attrs['http.response.header.set-cookie']).toBeUndefined()
+		expect(attrs['http.response.header.x-custom-resp']).toBeUndefined()
+
+		for (const key of Object.keys(attrs))
+			expect(key.startsWith('http.response.header.')).toBe(false)
+	})
+
 	it('records only allow-listed response headers', async () => {
 		const app = new Elysia()
 			.use(
