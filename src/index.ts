@@ -20,6 +20,9 @@ import { NodeSDK } from '@opentelemetry/sdk-node'
 // @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
 
+const toHeaderNameSet = (names: string[] | undefined): Set<string> =>
+	new Set((names ?? []).map((name) => name.toLowerCase()))
+
 const parseNumericString = (message: string): number | null => {
 	if (message.length < 16) {
 		if (message.length === 0) return null
@@ -66,6 +69,10 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 	 * @returns A boolean indicating whether tracing should be enabled for this request.
 	 */
 	checkIfShouldTrace?: (req: Request) => boolean
+	/** Request header names (case-insensitive) to add as `http.request.header.*`. Default: none. `user_agent.original` unchanged. With `cookie`, also sets `http.request.header.cookie` and `http.request.cookie` when `context.cookie` exists. */
+	spanRequestHeaders?: string[]
+	/** Response header names (case-insensitive) to add as `http.response.header.*`. Default: none. */
+	spanResponseHeaders?: string[]
 }
 
 export type ActiveSpanArgs<
@@ -242,8 +249,13 @@ export const opentelemetry = ({
 	instrumentations,
 	contextManager,
 	checkIfShouldTrace,
+	spanRequestHeaders,
+	spanResponseHeaders,
 	...options
 }: ElysiaOpenTelemetryOptions = {}) => {
+	const spanRequestHeaderSet = toHeaderNameSet(spanRequestHeaders)
+	const spanResponseHeaderSet = toHeaderNameSet(spanResponseHeaders)
+
 	let tracer = trace.getTracer(serviceName)
 
 	if (shouldStartNodeSDK(trace.getTracerProvider())) {
@@ -635,6 +647,7 @@ export const opentelemetry = ({
 
 							if (hasHeaders) {
 								if (key === 'user-agent') continue
+								if (!spanRequestHeaderSet.has(key)) continue
 
 								if (typeof value === 'object')
 									// Handle Set-Cookie array
@@ -647,21 +660,25 @@ export const opentelemetry = ({
 								continue
 							}
 
-							if (typeof value === 'object')
-								// Handle Set-Cookie array
-								headers[key] = attributes[
-									`http.request.header.${key}`
-								] = JSON.stringify(value)
-							else if (value !== undefined) {
+							if (typeof value === 'object') {
+								const serialized = JSON.stringify(value)
+
+								headers[key] = serialized
+
+								if (spanRequestHeaderSet.has(key))
+									attributes[`http.request.header.${key}`] =
+										serialized
+							} else if (value !== undefined) {
 								if (key === 'user-agent') {
 									headers[key] = value
-
 									continue
 								}
 
-								headers[key] = attributes[
-									`http.request.header.${key}`
-								] = value
+								headers[key] = value
+
+								if (spanRequestHeaderSet.has(key))
+									attributes[`http.request.header.${key}`] =
+										value
 							}
 						}
 					}
@@ -679,6 +696,7 @@ export const opentelemetry = ({
 
 						for (let [key, value] of headers) {
 							key = key.toLowerCase()
+							if (!spanResponseHeaderSet.has(key)) continue
 
 							if (typeof value === 'object')
 								attributes[`http.response.header.${key}`] =
@@ -708,8 +726,8 @@ export const opentelemetry = ({
 									: (ip.address ?? ip.toString())
 					}
 
-					// ? Elysia Custom attribute
-					if (cookie) {
+					// ? Elysia Custom attribute (opt-in: spanRequestHeaders includes `cookie`)
+					if (spanRequestHeaderSet.has('cookie') && cookie) {
 						const _cookie = <Record<string, string>>{}
 
 						for (const [key, { value }] of Object.entries(cookie))
