@@ -44,7 +44,8 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				headers: {
 					authorization: 'secret',
 					'x-scanner-probe': 'junk',
-					cookie: 'session=secret'
+					cookie: 'session=secret',
+					'user-agent': 'default-test-ua'
 				}
 			})
 		)
@@ -56,6 +57,8 @@ describe('Span header attributes (opt-in allow-list)', () => {
 		expect(attrs['http.request.header.authorization']).toBeUndefined()
 		expect(attrs['http.request.header.x-scanner-probe']).toBeUndefined()
 		expect(attrs['http.request.header.cookie']).toBeUndefined()
+		expect(attrs['http.request.header.user-agent']).toBeUndefined()
+		expect(attrs['user_agent.original']).toBe('default-test-ua')
 	})
 
 	it('records only allow-listed request headers', async () => {
@@ -87,6 +90,32 @@ describe('Span header attributes (opt-in allow-list)', () => {
 		expect(attrs['http.request.header.content-type']).toBe('text/plain')
 		expect(attrs['http.request.header.authorization']).toBeUndefined()
 		expect(attrs['http.request.header.x-other']).toBeUndefined()
+	})
+
+	it('records http.request.header.user-agent when allow-listed', async () => {
+		const app = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'user-agent-allowlist',
+					spanRequestHeaders: ['user-agent']
+				})
+			)
+			.get('/r', () => 'ok')
+
+		await app.handle(
+			new Request('http://localhost/r', {
+				headers: { 'user-agent': 'regression-test-ua' }
+			})
+		)
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
+		expect(attrs['http.request.header.user-agent']).toBe(
+			'regression-test-ua'
+		)
+		expect(attrs['user_agent.original']).toBe('regression-test-ua')
 	})
 
 	it('records raw Cookie header when allow-listed (http.request.cookie only with context.cookie)', async () => {

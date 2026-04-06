@@ -69,7 +69,7 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 	 * @returns A boolean indicating whether tracing should be enabled for this request.
 	 */
 	checkIfShouldTrace?: (req: Request) => boolean
-	/** Request header names (case-insensitive) to add as `http.request.header.*`. Default: none. `user_agent.original` unchanged. With `cookie`, also sets `http.request.header.cookie` and `http.request.cookie` when `context.cookie` exists. */
+	/** Request header names (case-insensitive) to add as `http.request.header.*`. Default: none. `user_agent.original` is still set when the User-Agent header is present (separate from this list). With `cookie`, also sets `http.request.header.cookie` and `http.request.cookie` when `context.cookie` exists. */
 	spanRequestHeaders?: string[]
 	/** Response header names (case-insensitive) to add as `http.response.header.*`. Default: none. */
 	spanResponseHeaders?: string[]
@@ -646,7 +646,6 @@ export const opentelemetry = ({
 							key = key.toLowerCase()
 
 							if (hasHeaders) {
-								if (key === 'user-agent') continue
 								if (!spanRequestHeaderSet.has(key)) continue
 
 								if (typeof value === 'object')
@@ -669,11 +668,6 @@ export const opentelemetry = ({
 									attributes[`http.request.header.${key}`] =
 										serialized
 							} else if (value !== undefined) {
-								if (key === 'user-agent') {
-									headers[key] = value
-									continue
-								}
-
 								headers[key] = value
 
 								if (spanRequestHeaderSet.has(key))
