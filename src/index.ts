@@ -198,23 +198,49 @@ const serializeBody = (
 	return { text, size: text.length }
 }
 
-const redactQueryString = (query: string, keys: Set<string>): string =>
-	query
-		.split('&')
-		.map((p) => {
-			const eq = p.indexOf('=')
-			const rawKey = eq === -1 ? p : p.slice(0, eq)
-			let decoded: string
+const redactQueryString = (query: string, keys: Set<string>): string => {
+	if (query === '' || keys.size === 0) return query
+
+	let out = ''
+	let partStart = 0
+	let keyEnd = -1
+
+	for (let i = 0; i <= query.length; i++) {
+		const ch = i === query.length ? 38 : query.charCodeAt(i)
+
+		if (ch === 61 && keyEnd === -1) {
+			keyEnd = i // '='
+			continue
+		}
+
+		if (ch !== 38) continue // '&'
+
+		const partEnd = i
+		const rawKeyEnd = keyEnd === -1 ? partEnd : keyEnd
+		const rawKey = query.slice(partStart, rawKeyEnd)
+
+		let decoded: string
+		if (rawKey.indexOf('%') !== -1 || rawKey.indexOf('+') !== -1) {
 			try {
 				decoded = decodeURIComponent(rawKey.replace(/\+/g, ' ')).toLowerCase()
 			} catch {
 				decoded = rawKey.toLowerCase()
 			}
-			return keys.has(decoded)
-				? `${rawKey}=[REDACTED]`
-				: p
-		})
-		.join('&')
+		} else {
+			decoded = rawKey.toLowerCase()
+		}
+
+		if (out) out += '&'
+		out += keys.has(decoded)
+			? rawKey + '=[REDACTED]'
+			: query.slice(partStart, partEnd)
+
+		partStart = i + 1
+		keyEnd = -1
+	}
+
+	return out
+}
 
 export const shouldStartNodeSDK = (provider: TracerProvider) => {
 	return (
