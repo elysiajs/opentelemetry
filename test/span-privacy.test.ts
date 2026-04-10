@@ -153,9 +153,9 @@ describe('Span privacy defaults (URL redaction, opt-in HTTP attributes)', () => 
 		expect(full).toContain('token=[REDACTED]')
 	})
 
-	it('does not record user_agent, content length, or body attributes without opt-in', async () => {
+	it('always records user_agent.original and content-length by default', async () => {
 		const app = new Elysia()
-			.use(opentelemetry({ serviceName: 'no-extra-http-attrs' }))
+			.use(opentelemetry({ serviceName: 'always-on-attrs' }))
 			.post('/r', ({ body }) => body)
 
 		await app.handle(
@@ -164,7 +164,7 @@ describe('Span privacy defaults (URL redaction, opt-in HTTP attributes)', () => 
 				headers: {
 					'Content-Type': 'application/json',
 					'Content-Length': '9',
-					'user-agent': 'privacy-test-ua'
+					'user-agent': 'always-on-ua'
 				},
 				body: '{"a":123}'
 			})
@@ -174,20 +174,62 @@ describe('Span privacy defaults (URL redaction, opt-in HTTP attributes)', () => 
 		const root = rootSpan()
 		expect(root).toBeDefined()
 		const attrs = root!.attributes
-		expect(attrs['user_agent.original']).toBeUndefined()
-		expect(attrs['http.request_content_length']).toBeUndefined()
+		expect(attrs['user_agent.original']).toBe('always-on-ua')
+		expect(attrs['http.request_content_length']).toBe(9)
+	})
+
+	it('records Content-Length: 0 correctly', async () => {
+		const app = new Elysia()
+			.use(opentelemetry({ serviceName: 'content-length-zero' }))
+			.post('/r', () => 'ok')
+
+		await app.handle(
+			new Request('http://localhost/r', {
+				method: 'POST',
+				headers: {
+					'Content-Length': '0'
+				}
+			})
+		)
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		expect(root!.attributes['http.request_content_length']).toBe(0)
+	})
+
+	it('does not record body attributes without recordBody opt-in', async () => {
+		const app = new Elysia()
+			.use(opentelemetry({ serviceName: 'no-body-default' }))
+			.post('/r', ({ body }) => body)
+
+		await app.handle(
+			new Request('http://localhost/r', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Content-Length': '9'
+				},
+				body: '{"a":123}'
+			})
+		)
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
 		expect(attrs['http.request.body.size']).toBeUndefined()
 		expect(attrs['http.request.body']).toBeUndefined()
 		expect(attrs['http.response.body.size']).toBeUndefined()
 		expect(attrs['http.response.body']).toBeUndefined()
 	})
 
-	it('records request body, response body, and sizes when opted in', async () => {
+	it('records both request and response body when recordBody is true', async () => {
 		const app = new Elysia()
 			.use(
 				opentelemetry({
-					serviceName: 'opt-in-http-attrs',
-					spanRecordHttpExtras: true
+					serviceName: 'record-body-true',
+					recordBody: true
 				})
 			)
 			.post('/r', ({ body }) => body)
@@ -198,7 +240,7 @@ describe('Span privacy defaults (URL redaction, opt-in HTTP attributes)', () => 
 				headers: {
 					'Content-Type': 'application/json',
 					'Content-Length': '9',
-					'user-agent': 'opt-in-ua'
+					'user-agent': 'body-test-ua'
 				},
 				body: '{"a":123}'
 			})
@@ -208,9 +250,67 @@ describe('Span privacy defaults (URL redaction, opt-in HTTP attributes)', () => 
 		const root = rootSpan()
 		expect(root).toBeDefined()
 		const attrs = root!.attributes
-		expect(attrs['user_agent.original']).toBe('opt-in-ua')
-		expect(attrs['http.request_content_length']).toBe(9)
 		expect(attrs['http.request.body.size']).toBe(9)
 		expect(attrs['http.request.body']).toBe('{"a":123}')
+	})
+
+	it('records only request body when recordBody: { request: true }', async () => {
+		const app = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'record-body-request-only',
+					recordBody: { request: true }
+				})
+			)
+			.post('/r', ({ body }) => body)
+
+		await app.handle(
+			new Request('http://localhost/r', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Content-Length': '9'
+				},
+				body: '{"a":123}'
+			})
+		)
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
+		expect(attrs['http.request.body.size']).toBe(9)
+		expect(attrs['http.request.body']).toBe('{"a":123}')
+		expect(attrs['http.response.body']).toBeUndefined()
+		expect(attrs['http.response.body.size']).toBeUndefined()
+	})
+
+	it('records only response body when recordBody: { response: true }', async () => {
+		const app = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'record-body-response-only',
+					recordBody: { response: true }
+				})
+			)
+			.post('/r', ({ body }) => body)
+
+		await app.handle(
+			new Request('http://localhost/r', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Content-Length': '9'
+				},
+				body: '{"a":123}'
+			})
+		)
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
+		expect(attrs['http.request.body']).toBeUndefined()
+		expect(attrs['http.request.body.size']).toBeUndefined()
 	})
 })

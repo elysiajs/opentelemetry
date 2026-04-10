@@ -44,8 +44,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				headers: {
 					authorization: 'secret',
 					'x-scanner-probe': 'junk',
-					cookie: 'session=secret',
-					'user-agent': 'default-test-ua'
+					cookie: 'session=secret'
 				}
 			})
 		)
@@ -58,7 +57,6 @@ describe('Span header attributes (opt-in allow-list)', () => {
 		expect(attrs['http.request.header.x-scanner-probe']).toBeUndefined()
 		expect(attrs['http.request.header.cookie']).toBeUndefined()
 		expect(attrs['http.request.header.user-agent']).toBeUndefined()
-		expect(attrs['user_agent.original']).toBeUndefined()
 	})
 
 	it('records only allow-listed request headers', async () => {
@@ -66,7 +64,9 @@ describe('Span header attributes (opt-in allow-list)', () => {
 			.use(
 				opentelemetry({
 					serviceName: 'headers-allowlist',
-					spanRequestHeaders: ['X-Allowed', 'content-type']
+					headersToSpanAttributes: {
+						requestHeaders: ['X-Allowed', 'content-type']
+					}
 				})
 			)
 			.get('/r', () => 'ok')
@@ -92,13 +92,71 @@ describe('Span header attributes (opt-in allow-list)', () => {
 		expect(attrs['http.request.header.x-other']).toBeUndefined()
 	})
 
+	it('records all request headers when "*" wildcard is used', async () => {
+		const app = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'headers-wildcard',
+					headersToSpanAttributes: {
+						requestHeaders: ['*']
+					}
+				})
+			)
+			.get('/r', () => 'ok')
+
+		await app.handle(
+			new Request('http://localhost/r', {
+				headers: {
+					authorization: 'Bearer tok',
+					'x-custom': 'value',
+					cookie: 'a=1'
+				}
+			})
+		)
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
+		expect(attrs['http.request.header.authorization']).toBe('Bearer tok')
+		expect(attrs['http.request.header.x-custom']).toBe('value')
+		expect(attrs['http.request.header.cookie']).toBe('a=1')
+	})
+
+	it('records all response headers when "*" wildcard is used', async () => {
+		const app = new Elysia()
+			.use(
+				opentelemetry({
+					serviceName: 'resp-wildcard',
+					headersToSpanAttributes: {
+						responseHeaders: ['*']
+					}
+				})
+			)
+			.onRequest(({ set }) => {
+				set.headers['X-Out'] = 'seen'
+				set.headers['X-Secret'] = 'also-seen'
+			})
+			.get('/r', () => 'ok')
+
+		await app.handle(new Request('http://localhost/r'))
+		await flushSpans()
+
+		const root = rootSpan()
+		expect(root).toBeDefined()
+		const attrs = root!.attributes
+		expect(attrs['http.response.header.x-out']).toBe('seen')
+		expect(attrs['http.response.header.x-secret']).toBe('also-seen')
+	})
+
 	it('records http.request.header.user-agent when allow-listed', async () => {
 		const app = new Elysia()
 			.use(
 				opentelemetry({
 					serviceName: 'user-agent-allowlist',
-					spanRequestHeaders: ['user-agent'],
-					spanRecordHttpExtras: true
+					headersToSpanAttributes: {
+						requestHeaders: ['user-agent']
+					}
 				})
 			)
 			.get('/r', () => 'ok')
@@ -124,7 +182,9 @@ describe('Span header attributes (opt-in allow-list)', () => {
 			.use(
 				opentelemetry({
 					serviceName: 'cookie-allowlist',
-					spanRequestHeaders: ['cookie']
+					headersToSpanAttributes: {
+						requestHeaders: ['cookie']
+					}
 				})
 			)
 			.get('/r', () => 'ok')
@@ -148,7 +208,9 @@ describe('Span header attributes (opt-in allow-list)', () => {
 			.use(
 				opentelemetry({
 					serviceName: 'cookie-absent',
-					spanRequestHeaders: ['cookie']
+					headersToSpanAttributes: {
+						requestHeaders: ['cookie']
+					}
 				})
 			)
 			.get('/r', () => 'ok')
@@ -191,7 +253,9 @@ describe('Span header attributes (opt-in allow-list)', () => {
 			.use(
 				opentelemetry({
 					serviceName: 'resp-headers-allowlist',
-					spanResponseHeaders: ['x-out']
+					headersToSpanAttributes: {
+						responseHeaders: ['x-out']
+					}
 				})
 			)
 			.onRequest(({ set }) => {

@@ -98,14 +98,22 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 		sensitiveQueryParams?: string[]
 	}
 	/**
-	 * When true, records `user_agent.original`, content-length / body sizes, and request/response body strings.
-	 * Default: false (safe-by-default alongside header allow-lists).
+	 * Record full request/response body content on spans.
+	 * `true`: record both request and response bodies.
+	 * `{ request: true }` or `{ response: true }`: record only one side.
+	 * Default: `false` (no body content recorded).
 	 */
-	spanRecordHttpExtras?: boolean
-	/** Request header names (case-insensitive) to add as `http.request.header.*`. Default: none. With `cookie`, also sets `http.request.header.cookie` and `http.request.cookie` when `context.cookie` exists. */
-	spanRequestHeaders?: string[]
-	/** Response header names (case-insensitive) to add as `http.response.header.*`. Default: none. */
-	spanResponseHeaders?: string[]
+	recordBody?: boolean | { request?: boolean; response?: boolean }
+	/**
+	 * HTTP header names (case-insensitive) to capture as span attributes.
+	 * Use `"*"` in either list to capture all headers (useful for dev/debugging; may include sensitive values).
+	 * Including `"cookie"` in `requestHeaders` also emits `http.request.cookie` when `context.cookie` exists.
+	 * Default: none (no headers recorded).
+	 */
+	headersToSpanAttributes?: {
+		requestHeaders?: string[]
+		responseHeaders?: string[]
+	}
 }
 
 export type ActiveSpanArgs<
@@ -207,14 +215,6 @@ const redactQueryString = (query: string, keys: Set<string>): string =>
 				: p
 		})
 		.join('&')
-
-const isNotEmpty = (obj?: Object) => {
-	if (!obj) return false
-
-	for (const x in obj) return true
-
-	return false
-}
 
 export const shouldStartNodeSDK = (provider: TracerProvider) => {
 	return (
@@ -318,13 +318,16 @@ export const opentelemetry = ({
 	contextManager,
 	checkIfShouldTrace,
 	spanUrlRedaction,
-	spanRecordHttpExtras,
-	spanRequestHeaders,
-	spanResponseHeaders,
+	recordBody,
+	headersToSpanAttributes,
 	...options
 }: ElysiaOpenTelemetryOptions = {}) => {
-	const spanRequestHeaderSet = toHeaderNameSet(spanRequestHeaders)
-	const spanResponseHeaderSet = toHeaderNameSet(spanResponseHeaders)
+	const spanRequestHeaderSet = toHeaderNameSet(headersToSpanAttributes?.requestHeaders)
+	const spanResponseHeaderSet = toHeaderNameSet(headersToSpanAttributes?.responseHeaders)
+	const requestHeaderWildcard = spanRequestHeaderSet.has('*')
+	const responseHeaderWildcard = spanResponseHeaderSet.has('*')
+	const recordRequestBody = recordBody === true || (recordBody && recordBody.request) || false
+	const recordResponseBody = recordBody === true || (recordBody && recordBody.response) || false
 	const urlRedactOpts = spanUrlRedaction === false ? null : (spanUrlRedaction ?? {})
 	const sensitiveKeys = urlRedactOpts
 		? new Set([
@@ -699,30 +702,21 @@ export const opentelemetry = ({
 					 * but not always, present as the Content-Length header.
 					 * For requests using transport encoding, this should be the compressed size.
 					 **/
-					{
-						let contentLength =
-							request.headers.get('content-length')
+					const contentLength = request.headers.get('content-length')
+					if (contentLength) {
+						const number = parseNumericString(contentLength)
 
-						if (spanRecordHttpExtras && contentLength) {
-							const number = parseNumericString(contentLength)
-
-							if (number)
-								attributes['http.request_content_length'] =
-									number
-						}
+						if (number !== null)
+							attributes['http.request_content_length'] = number
 					}
 
-					if (spanRecordHttpExtras) {
-						const userAgent = request.headers.get('User-Agent')
-
-						if (userAgent)
-							attributes['user_agent.original'] = userAgent
-					}
+					const userAgent = request.headers.get('User-Agent')
+					if (userAgent)
+						attributes['user_agent.original'] = userAgent
 
 					const server = context.server
 					if (server) {
 						attributes['server.port'] = server.port ?? 80
-						attributes['server.address'] = server.url.hostname
 						attributes['server.address'] = server.url.hostname
 					}
 
@@ -751,7 +745,7 @@ export const opentelemetry = ({
 							key = key.toLowerCase()
 
 							if (hasHeaders) {
-								if (!spanRequestHeaderSet.has(key)) continue
+								if (!requestHeaderWildcard && !spanRequestHeaderSet.has(key)) continue
 
 								if (typeof value === 'object')
 									// Handle Set-Cookie array
@@ -769,13 +763,13 @@ export const opentelemetry = ({
 
 								headers[key] = serialized
 
-								if (spanRequestHeaderSet.has(key))
+								if (requestHeaderWildcard || spanRequestHeaderSet.has(key))
 									attributes[`http.request.header.${key}`] =
 										serialized
 							} else if (value !== undefined) {
 								headers[key] = value
 
-								if (spanRequestHeaderSet.has(key))
+								if (requestHeaderWildcard || spanRequestHeaderSet.has(key))
 									attributes[`http.request.header.${key}`] =
 										value
 							}
@@ -795,7 +789,7 @@ export const opentelemetry = ({
 
 						for (let [key, value] of headers) {
 							key = key.toLowerCase()
-							if (!spanResponseHeaderSet.has(key)) continue
+							if (!responseHeaderWildcard && !spanResponseHeaderSet.has(key)) continue
 
 							if (typeof value === 'object')
 								attributes[`http.response.header.${key}`] =
@@ -825,8 +819,8 @@ export const opentelemetry = ({
 									: (ip.address ?? ip.toString())
 					}
 
-					// ? Elysia Custom attribute (opt-in: spanRequestHeaders includes `cookie`)
-					if (spanRequestHeaderSet.has('cookie') && cookie) {
+					// ? Elysia Custom attribute (opt-in: requestHeaders includes `cookie`)
+					if ((requestHeaderWildcard || spanRequestHeaderSet.has('cookie')) && cookie) {
 						const _cookie = <Record<string, string>>{}
 
 						for (const [key, { value }] of Object.entries(cookie))
@@ -841,7 +835,7 @@ export const opentelemetry = ({
 
 				onParse(() => {
 					const body = context.body
-					if (body === undefined || body === null || !spanRecordHttpExtras)
+					if (body === undefined || body === null || !recordRequestBody)
 						return
 
 					const { text, size } = serializeBody(body)
@@ -854,7 +848,7 @@ export const opentelemetry = ({
 					if (
 						body !== undefined &&
 						body !== null &&
-						spanRecordHttpExtras
+						recordRequestBody
 					) {
 						const { text, size } = serializeBody(body)
 						if (text) attributes['http.request.body'] = text
@@ -871,7 +865,7 @@ export const opentelemetry = ({
 
 					// @ts-ignore
 					const response = context.responseValue
-					if (response !== undefined && spanRecordHttpExtras) {
+					if (response !== undefined && recordResponseBody) {
 						const { text, size } = serializeBody(response)
 						if (text) attributes['http.response.body'] = text
 						attributes['http.response.body.size'] = size
@@ -907,7 +901,7 @@ export const opentelemetry = ({
 					if (
 						body !== undefined &&
 						body !== null &&
-						spanRecordHttpExtras
+						recordRequestBody
 					) {
 						const { text, size } = serializeBody(body)
 						if (text) attributes['http.request.body'] = text
