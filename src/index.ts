@@ -219,19 +219,8 @@ const redactQueryString = (query: string, keys: Set<string>): string => {
 		const rawKeyEnd = keyEnd === -1 ? partEnd : keyEnd
 		const rawKey = query.slice(partStart, rawKeyEnd)
 
-		let decoded: string
-		if (rawKey.indexOf('%') !== -1 || rawKey.indexOf('+') !== -1) {
-			try {
-				decoded = decodeURIComponent(rawKey.replace(/\+/g, ' ')).toLowerCase()
-			} catch {
-				decoded = rawKey.toLowerCase()
-			}
-		} else {
-			decoded = rawKey.toLowerCase()
-		}
-
 		if (out) out += '&'
-		out += keys.has(decoded)
+		out += keys.has(rawKey.toLowerCase())
 			? rawKey + '=[REDACTED]'
 			: query.slice(partStart, partEnd)
 
