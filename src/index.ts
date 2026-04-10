@@ -191,9 +191,15 @@ const redactQueryString = (query: string, keys: Set<string>): string =>
 		.split('&')
 		.map((p) => {
 			const eq = p.indexOf('=')
-			const key = (eq === -1 ? p : p.slice(0, eq)).toLowerCase()
-			return keys.has(key)
-				? `${eq === -1 ? p : p.slice(0, eq)}=[REDACTED]`
+			const rawKey = eq === -1 ? p : p.slice(0, eq)
+			let decoded: string
+			try {
+				decoded = decodeURIComponent(rawKey).toLowerCase()
+			} catch {
+				decoded = rawKey.toLowerCase()
+			}
+			return keys.has(decoded)
+				? `${rawKey}=[REDACTED]`
 				: p
 		})
 		.join('&')
