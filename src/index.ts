@@ -206,7 +206,7 @@ const redactQueryString = (query: string, keys: Set<string>): string =>
 			const rawKey = eq === -1 ? p : p.slice(0, eq)
 			let decoded: string
 			try {
-				decoded = decodeURIComponent(rawKey).toLowerCase()
+				decoded = decodeURIComponent(rawKey.replace(/\+/g, ' ')).toLowerCase()
 			} catch {
 				decoded = rawKey.toLowerCase()
 			}
