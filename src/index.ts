@@ -180,8 +180,12 @@ const serializeBody = (
 	if (body instanceof ArrayBuffer) return { text: '', size: body.byteLength }
 	if (body instanceof Blob) return { text: '', size: body.size }
 
-	const text =
-		typeof body === 'object' ? JSON.stringify(body) : String(body)
+	let text: string
+	try {
+		text = typeof body === 'object' ? JSON.stringify(body) : String(body)
+	} catch {
+		text = '[Unserializable]'
+	}
 
 	return { text, size: text.length }
 }
