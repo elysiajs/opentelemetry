@@ -58,7 +58,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 		expect(attrs['http.request.header.x-scanner-probe']).toBeUndefined()
 		expect(attrs['http.request.header.cookie']).toBeUndefined()
 		expect(attrs['http.request.header.user-agent']).toBeUndefined()
-		expect(attrs['user_agent.original']).toBe('default-test-ua')
+		expect(attrs['user_agent.original']).toBeUndefined()
 	})
 
 	it('records only allow-listed request headers', async () => {
@@ -97,7 +97,8 @@ describe('Span header attributes (opt-in allow-list)', () => {
 			.use(
 				opentelemetry({
 					serviceName: 'user-agent-allowlist',
-					spanRequestHeaders: ['user-agent']
+					spanRequestHeaders: ['user-agent'],
+					spanRecordHttpExtras: true
 				})
 			)
 			.get('/r', () => 'ok')
