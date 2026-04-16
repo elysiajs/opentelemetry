@@ -410,11 +410,6 @@ export const opentelemetry = ({
 
 										if ((span as any).ended || (rootSpan as any).ended) return
 										if (error) {
-											rootSpan.setStatus({
-												code: SpanStatusCode.ERROR,
-												message: error.message
-											})
-
 											span.setAttributes({
 												'error.type':
 													error.constructor
@@ -422,19 +417,6 @@ export const opentelemetry = ({
 													error.name,
 												'error.stack':
 													error.stack
-											})
-
-											span.setStatus({
-												code: SpanStatusCode.ERROR,
-												message: error.message
-											})
-										} else {
-											rootSpan.setStatus({
-												code: SpanStatusCode.OK
-											})
-
-											span.setStatus({
-												code: SpanStatusCode.OK
 											})
 										}
 
@@ -495,26 +477,8 @@ export const opentelemetry = ({
 						if ((span as any).ended || rootSpan.ended) return
 
 						if (error) {
-							rootSpan.setStatus({
-								code: SpanStatusCode.ERROR,
-								message: error.message
-							})
-
-							span.setStatus({
-								code: SpanStatusCode.ERROR,
-								message: error.message
-							})
-
 							span.recordException(error)
 							rootSpan.recordException(error)
-						} else {
-							rootSpan.setStatus({
-								code: SpanStatusCode.OK
-							})
-
-							span.setStatus({
-								code: SpanStatusCode.OK
-							})
 						}
 
 						span.end()
