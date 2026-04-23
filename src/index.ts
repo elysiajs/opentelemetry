@@ -20,6 +20,29 @@ import { NodeSDK } from '@opentelemetry/sdk-node'
 // @ts-ignore bun only
 const headerHasToJSON = typeof new Headers().toJSON === 'function'
 
+const toHeaderNameSet = (names: string[] | undefined): Set<string> =>
+	new Set((names ?? []).map((name) => name.toLowerCase()))
+
+const SENSITIVE_QUERY_KEYS = new Set([
+	'token',
+	'access_token',
+	'refresh_token',
+	'id_token',
+	'password',
+	'passwd',
+	'pwd',
+	'secret',
+	'client_secret',
+	'api_key',
+	'apikey',
+	'api-key',
+	'authorization',
+	'credential',
+	'credentials',
+	'code',
+	'nonce'
+])
+
 const parseNumericString = (message: string): number | null => {
 	if (message.length < 16) {
 		if (message.length === 0) return null
@@ -66,6 +89,31 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 	 * @returns A boolean indicating whether tracing should be enabled for this request.
 	 */
 	checkIfShouldTrace?: (req: Request) => boolean
+	/**
+	 * Redact `userinfo` and sensitive query values in `url.full` / `url.query`.
+	 * Omitted: default redaction. `false`: record raw URLs (may leak secrets in query or credentials).
+	 */
+	spanUrlRedaction?: false | {
+		stripCredentials?: boolean
+		sensitiveQueryParams?: string[]
+	}
+	/**
+	 * Record full request/response body content on spans.
+	 * `true`: record both request and response bodies.
+	 * `{ request: true }` or `{ response: true }`: record only one side.
+	 * Default: `false` (no body content recorded).
+	 */
+	recordBody?: boolean | { request?: boolean; response?: boolean }
+	/**
+	 * HTTP header names (case-insensitive) to capture as span attributes.
+	 * Use `"*"` in either list to capture all headers (useful for dev/debugging; may include sensitive values).
+	 * Including `"cookie"` in `requestHeaders` also emits `http.request.cookie` when `context.cookie` exists.
+	 * Default: none (no headers recorded).
+	 */
+	headersToSpanAttributes?: {
+		requestHeaders?: string[]
+		responseHeaders?: string[]
+	}
 }
 
 export type ActiveSpanArgs<
@@ -133,12 +181,54 @@ const createContext = (parent: Span) => ({
 	}
 })
 
-const isNotEmpty = (obj?: Object) => {
-	if (!obj) return false
+const serializeBody = (
+	body: unknown
+): { text: string; size: number } => {
+	if (body instanceof Uint8Array) return { text: '', size: body.length }
+	if (body instanceof ArrayBuffer) return { text: '', size: body.byteLength }
+	if (body instanceof Blob) return { text: '', size: body.size }
 
-	for (const x in obj) return true
+	let text: string
+	try {
+		text = typeof body === 'object' ? JSON.stringify(body) : String(body)
+	} catch {
+		text = '[Unserializable]'
+	}
 
-	return false
+	return { text, size: text.length }
+}
+
+const redactQueryString = (query: string, keys: Set<string>): string => {
+	if (query === '' || keys.size === 0) return query
+
+	let out = ''
+	let partStart = 0
+	let keyEnd = -1
+
+	for (let i = 0; i <= query.length; i++) {
+		const ch = i === query.length ? 38 : query.charCodeAt(i)
+
+		if (ch === 61 && keyEnd === -1) {
+			keyEnd = i // '='
+			continue
+		}
+
+		if (ch !== 38) continue // '&'
+
+		const partEnd = i
+		const rawKeyEnd = keyEnd === -1 ? partEnd : keyEnd
+		const rawKey = query.slice(partStart, rawKeyEnd)
+
+		if (out) out += '&'
+		out += keys.has(rawKey.toLowerCase())
+			? rawKey + '=[REDACTED]'
+			: query.slice(partStart, partEnd)
+
+		partStart = i + 1
+		keyEnd = -1
+	}
+
+	return out
 }
 
 export const shouldStartNodeSDK = (provider: TracerProvider) => {
@@ -242,8 +332,28 @@ export const opentelemetry = ({
 	instrumentations,
 	contextManager,
 	checkIfShouldTrace,
+	spanUrlRedaction,
+	recordBody,
+	headersToSpanAttributes,
 	...options
 }: ElysiaOpenTelemetryOptions = {}) => {
+	const spanRequestHeaderSet = toHeaderNameSet(headersToSpanAttributes?.requestHeaders)
+	const spanResponseHeaderSet = toHeaderNameSet(headersToSpanAttributes?.responseHeaders)
+	const requestHeaderWildcard = spanRequestHeaderSet.has('*')
+	const responseHeaderWildcard = spanResponseHeaderSet.has('*')
+	const recordRequestBody = recordBody === true || (recordBody && recordBody.request) || false
+	const recordResponseBody = recordBody === true || (recordBody && recordBody.response) || false
+	const urlRedactOpts = spanUrlRedaction === false ? null : (spanUrlRedaction ?? {})
+	const sensitiveKeys = urlRedactOpts
+		? new Set([
+				...SENSITIVE_QUERY_KEYS,
+				...(urlRedactOpts.sensitiveQueryParams ?? []).map(
+					(k: string) => k.toLowerCase()
+				)
+			])
+		: undefined
+	const stripCreds = urlRedactOpts?.stripCredentials !== false
+
 	let tracer = trace.getTracer(serviceName)
 
 	if (shouldStartNodeSDK(trace.getTracerProvider())) {
@@ -436,26 +546,51 @@ export const opentelemetry = ({
 				}
 
 				// @ts-expect-error private property
-				const url = context.url
+				const rawUrl: string = context.url
+				// @ts-expect-error private property
+				const qi: number | undefined = context.qi
+				const hasQuery = qi !== undefined && qi !== -1
+				let urlQuery = hasQuery ? rawUrl.slice(qi + 1) : undefined
+				let urlFull = rawUrl
+
+				if (urlRedactOpts) {
+					if (urlQuery !== undefined) {
+						urlQuery = redactQueryString(urlQuery, sensitiveKeys!)
+						urlFull = `${rawUrl.slice(0, qi)}?${urlQuery}`
+					}
+
+					if (stripCreds && urlFull.indexOf('@') > 0) {
+						try {
+							const u = new URL(urlFull)
+							if (u.username || u.password) {
+								u.username = ''
+								u.password = ''
+								urlFull = u.href
+							}
+						} catch {
+							// keep urlFull as-is
+						}
+					}
+				}
+
 				const attributes: Record<string, string | number> =
 					Object.assign(Object.create(null), {
 						// ? Elysia Custom attribute
 						'http.request.id': id,
 						'http.request.method': method,
 						'url.path': path,
-						'url.full': url
+						'url.full': urlFull
 					})
 
-				// @ts-ignore private property
-				if (context.qi && context.qi !== -1)
-					attributes['url.query'] = url.slice(
-						// @ts-ignore private property
-						context.qi + 1
-					)
+				if (urlQuery !== undefined)
+					attributes['url.query'] = urlQuery
 
-				const protocolSeparator = url.indexOf('://')
+				const protocolSeparator = urlFull.indexOf('://')
 				if (protocolSeparator > 0)
-					attributes['url.scheme'] = url.slice(0, protocolSeparator)
+					attributes['url.scheme'] = urlFull.slice(
+						0,
+						protocolSeparator
+					)
 
 				onRequest(inspect('Request'))
 				onParse(inspect('Parse'))
@@ -546,30 +681,21 @@ export const opentelemetry = ({
 					 * but not always, present as the Content-Length header.
 					 * For requests using transport encoding, this should be the compressed size.
 					 **/
-					{
-						let contentLength =
-							request.headers.get('content-length')
+					const contentLength = request.headers.get('content-length')
+					if (contentLength) {
+						const number = parseNumericString(contentLength)
 
-						if (contentLength) {
-							const number = parseNumericString(contentLength)
-
-							if (number)
-								attributes['http.request_content_length'] =
-									number
-						}
+						if (number !== null)
+							attributes['http.request_content_length'] = number
 					}
 
-					{
-						const userAgent = request.headers.get('User-Agent')
-
-						if (userAgent)
-							attributes['user_agent.original'] = userAgent
-					}
+					const userAgent = request.headers.get('User-Agent')
+					if (userAgent)
+						attributes['user_agent.original'] = userAgent
 
 					const server = context.server
 					if (server) {
 						attributes['server.port'] = server.port ?? 80
-						attributes['server.address'] = server.url.hostname
 						attributes['server.address'] = server.url.hostname
 					}
 
@@ -598,7 +724,7 @@ export const opentelemetry = ({
 							key = key.toLowerCase()
 
 							if (hasHeaders) {
-								if (key === 'user-agent') continue
+								if (!requestHeaderWildcard && !spanRequestHeaderSet.has(key)) continue
 
 								if (typeof value === 'object')
 									// Handle Set-Cookie array
@@ -611,21 +737,20 @@ export const opentelemetry = ({
 								continue
 							}
 
-							if (typeof value === 'object')
-								// Handle Set-Cookie array
-								headers[key] = attributes[
-									`http.request.header.${key}`
-								] = JSON.stringify(value)
-							else if (value !== undefined) {
-								if (key === 'user-agent') {
-									headers[key] = value
+							if (typeof value === 'object') {
+								const serialized = JSON.stringify(value)
 
-									continue
-								}
+								headers[key] = serialized
 
-								headers[key] = attributes[
-									`http.request.header.${key}`
-								] = value
+								if (requestHeaderWildcard || spanRequestHeaderSet.has(key))
+									attributes[`http.request.header.${key}`] =
+										serialized
+							} else if (value !== undefined) {
+								headers[key] = value
+
+								if (requestHeaderWildcard || spanRequestHeaderSet.has(key))
+									attributes[`http.request.header.${key}`] =
+										value
 							}
 						}
 					}
@@ -643,6 +768,7 @@ export const opentelemetry = ({
 
 						for (let [key, value] of headers) {
 							key = key.toLowerCase()
+							if (!responseHeaderWildcard && !spanResponseHeaderSet.has(key)) continue
 
 							if (typeof value === 'object')
 								attributes[`http.response.header.${key}`] =
@@ -672,8 +798,8 @@ export const opentelemetry = ({
 									: (ip.address ?? ip.toString())
 					}
 
-					// ? Elysia Custom attribute
-					if (cookie) {
+					// ? Elysia Custom attribute (opt-in: requestHeaders includes `cookie`)
+					if ((requestHeaderWildcard || spanRequestHeaderSet.has('cookie')) && cookie) {
 						const _cookie = <Record<string, string>>{}
 
 						for (const [key, { value }] of Object.entries(cookie))
@@ -688,55 +814,24 @@ export const opentelemetry = ({
 
 				onParse(() => {
 					const body = context.body
-					if (body !== undefined && body !== null) {
-						const value =
-							typeof body === 'object'
-								? JSON.stringify(body)
-								: body.toString()
+					if (body === undefined || body === null || !recordRequestBody)
+						return
 
-						attributes['http.request.body'] = value
-
-						if (typeof body === 'object') {
-							if (body instanceof Uint8Array)
-								attributes['http.request.body.size'] =
-									body.length
-							else if (body instanceof ArrayBuffer)
-								attributes['http.request.body.size'] =
-									body.byteLength
-							else if (body instanceof Blob)
-								attributes['http.request.body.size'] = body.size
-
-							attributes['http.request.body.size'] = value.length
-						} else {
-							attributes['http.request.body.size'] = value.length
-						}
-					}
+					const { text, size } = serializeBody(body)
+					if (text) attributes['http.request.body'] = text
+					attributes['http.request.body.size'] = size
 				})
 
 				onMapResponse(() => {
 					const body = context.body
-					if (body !== undefined && body !== null) {
-						const value =
-							typeof body === 'object'
-								? JSON.stringify(body)
-								: body.toString()
-
-						attributes['http.request.body'] = value
-
-						if (typeof body === 'object') {
-							if (body instanceof Uint8Array)
-								attributes['http.request.body.size'] =
-									body.length
-							else if (body instanceof ArrayBuffer)
-								attributes['http.request.body.size'] =
-									body.byteLength
-							else if (body instanceof Blob)
-								attributes['http.request.body.size'] = body.size
-
-							attributes['http.request.body.size'] = value.length
-						} else {
-							attributes['http.request.body.size'] = value.length
-						}
+					if (
+						body !== undefined &&
+						body !== null &&
+						recordRequestBody
+					) {
+						const { text, size } = serializeBody(body)
+						if (text) attributes['http.request.body'] = text
+						attributes['http.request.body.size'] = size
 					}
 
 					{
@@ -749,41 +844,11 @@ export const opentelemetry = ({
 
 					// @ts-ignore
 					const response = context.responseValue
-					if (response !== undefined)
-						switch (typeof response) {
-							case 'object':
-								if (response instanceof Response) {
-									// Unable to access as async, skip
-								} else if (response instanceof Uint8Array)
-									attributes['http.response.body.size'] =
-										response.length
-								else if (response instanceof ArrayBuffer)
-									attributes['http.response.body.size'] =
-										response.byteLength
-								else if (response instanceof Blob)
-									attributes['http.response.body.size'] =
-										response.size
-								else {
-									const value = JSON.stringify(response)
-
-									attributes['http.response.body'] = value
-									attributes['http.response.body.size'] =
-										value.length
-								}
-
-								break
-
-							default:
-								if (response === undefined || response === null)
-									attributes['http.response.body.size'] = 0
-								else {
-									const value = response.toString()
-
-									attributes['http.response.body'] = value
-									attributes['http.response.body.size'] =
-										value.length
-								}
-						}
+					if (response !== undefined && recordResponseBody) {
+						const { text, size } = serializeBody(response)
+						if (text) attributes['http.response.body'] = text
+						attributes['http.response.body.size'] = size
+					}
 
 					if (!(rootSpan as any).ended) {
 						const statusCode =
@@ -812,28 +877,14 @@ export const opentelemetry = ({
 					}
 
 					const body = context.body
-					if (body !== undefined && body !== null) {
-						const value =
-							typeof body === 'object'
-								? JSON.stringify(body)
-								: body.toString()
-
-						attributes['http.request.body'] = value
-
-						if (typeof body === 'object') {
-							if (body instanceof Uint8Array)
-								attributes['http.request.body.size'] =
-									body.length
-							else if (body instanceof ArrayBuffer)
-								attributes['http.request.body.size'] =
-									body.byteLength
-							else if (body instanceof Blob)
-								attributes['http.request.body.size'] = body.size
-
-							attributes['http.request.body.size'] = value.length
-						} else {
-							attributes['http.request.body.size'] = value.length
-						}
+					if (
+						body !== undefined &&
+						body !== null &&
+						recordRequestBody
+					) {
+						const { text, size } = serializeBody(body)
+						if (text) attributes['http.request.body'] = text
+						attributes['http.request.body.size'] = size
 					}
 
 					if (!(rootSpan as any).ended) {
