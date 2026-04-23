@@ -11,8 +11,8 @@
       },
       "devDependencies": {
         "@axiomhq/js": "^1.3.1",
-        "@elysiajs/eden": "^1.3.0",
-        "@elysiajs/graphql-yoga": "^1.2.0",
+        "@elysia/eden": "^1.4.10",
+        "@elysia/graphql-yoga": "^1.4.1",
         "@envelop/core": "^5.2.3",
         "@envelop/opentelemetry": "^7.1.3",
         "@opentelemetry/context-async-hooks": "^2.0.0",
@@ -39,9 +39,9 @@
 
     "@borewit/text-codec": ["@borewit/text-codec@0.1.1", "", {}, "sha512-5L/uBxmjaCIX5h8Z+uu+kA9BQLkc/Wl06UGR5ajNRxu+/XjonB5i8JpgFMrPj3LXTCPA0pv8yxUvbUi+QthGGA=="],
 
-    "@elysiajs/eden": ["@elysiajs/eden@1.3.3", "", { "peerDependencies": { "elysia": ">= 1.3.18" } }, "sha512-O1wSGpmLUyyLMrZly4HTywR3Dvoj0eLYRr0ijaeWesmlBln9vi+DjmZsd4V+x9CToiHj+E/mpiLCE+4d/FkL2w=="],
+    "@elysia/eden": ["@elysia/eden@1.4.10", "", { "peerDependencies": { "elysia": ">=1.4.19" } }, "sha512-vcZXQcW6wZj6rhTxaiTkuCbVuS/yAJQ9jqCM6b83a5hu99F5Aj3HOyWXL17iod2Rz+pJpYsQGX0XaeoCsMpw2g=="],
 
-    "@elysiajs/graphql-yoga": ["@elysiajs/graphql-yoga@1.3.0", "", { "dependencies": { "graphql": "^16.6.0", "graphql-mobius": "^0.1.11", "graphql-yoga": "^3.9.1" }, "peerDependencies": { "elysia": ">= 1.3.0" } }, "sha512-6yWfZGmrg5rB5uNsrhK76O8Q6QCPhYTgte631JqoNKpwQIKvC1wsabDAR+rAkn4x0UUiTqfBITdHnUXOkuZqVg=="],
+    "@elysia/graphql-yoga": ["@elysia/graphql-yoga@1.4.1", "", { "dependencies": { "graphql": "^16.6.0", "graphql-mobius": "^0.1.11", "graphql-yoga": "^3.9.1" }, "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-C8T0Ph6c85raggXXqK/yQw1Y/P5EUEF9igwTQfssNsP9qIQTqZe22C2+IbzP6Dn9kcmO5XGCEEzIORMM6x+7PA=="],
 
     "@envelop/core": ["@envelop/core@5.3.1", "", { "dependencies": { "@envelop/instrumentation": "^1.0.0", "@envelop/types": "^5.2.1", "@whatwg-node/promise-helpers": "^1.2.4", "tslib": "^2.5.0" } }, "sha512-n29V3vRqXvPcG76C8zE482LQykk0P66zv1mjpk7aHeGe9qnh8AzB/RvoX5SVFwApJQPp0ixob8NoYXg4FHKMGA=="],
 
