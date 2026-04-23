@@ -1,6 +1,7 @@
 import { Elysia, type TraceEvent, type TraceProcess, StatusMap } from 'elysia'
 import {
 	trace,
+	metrics,
 	context as otelContext,
 	propagation,
 	SpanStatusCode,
@@ -404,6 +405,21 @@ export const opentelemetry = ({
 			// }
 		}
 
+	const meter = metrics.getMeter(serviceName)
+	const httpServerDuration = meter.createHistogram(
+		'http.server.request.duration',
+		{
+			description: 'Duration of HTTP server requests.',
+			unit: 's',
+			advice: {
+				explicitBucketBoundaries: [
+					0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75,
+					1, 2.5, 5, 7.5, 10, 30, 60, 120, 300, 600, 900, 1800
+				]
+			}
+		}
+	)
+
 	return new Elysia({
 		name: '@elysia/opentelemetry'
 	})
@@ -592,6 +608,31 @@ export const opentelemetry = ({
 						protocolSeparator
 					)
 
+				const requestStartTime = performance.now()
+				let durationRecorded = false
+
+				const recordDuration = () => {
+					if (durationRecorded) return
+					durationRecorded = true
+
+					const durationS =
+						(performance.now() - requestStartTime) / 1000
+					const statusCode =
+						attributes['http.response.status_code']
+
+					const metricAttributes = {
+						'http.request.method': attributes['http.request.method'] ?? method,
+						'url.scheme': attributes['url.scheme'],
+						'http.response.status_code': statusCode,
+						'http.route': attributes['http.route']
+					} as Record<string, string | number | undefined>
+
+					if (typeof statusCode === 'number' && statusCode >= 500)
+						metricAttributes['error.type'] = String(statusCode)
+
+					httpServerDuration.record(durationS, metricAttributes)
+				}
+
 				onRequest(inspect('Request'))
 				onParse(inspect('Parse'))
 				onTransform(inspect('Transform'))
@@ -656,8 +697,10 @@ export const opentelemetry = ({
 						if (
 							// @ts-ignore
 							!rootSpan.ended
-						)
+						) {
+							recordDuration()
 							rootSpan.end()
+						}
 					})
 				})
 				onMapResponse(inspect('MapResponse'))
@@ -909,8 +952,10 @@ export const opentelemetry = ({
 						if (
 							// @ts-ignore
 							!rootSpan.ended
-						)
+						) {
+							recordDuration()
 							rootSpan.end()
+						}
 					})
 				})
 
@@ -925,6 +970,7 @@ export const opentelemetry = ({
 						code: SpanStatusCode.ERROR,
 						message: 'Request aborted'
 					})
+					recordDuration()
 					rootSpan.end()
 				})
 			}
