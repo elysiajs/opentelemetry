@@ -29,9 +29,9 @@ describe('Span header attributes (opt-in allow-list)', () => {
 	})
 
 	function rootSpan() {
-		return exporter.getFinishedSpans().find(
-			(s) => s.attributes['http.request.method'] !== undefined
-		)
+		return exporter
+			.getFinishedSpans()
+			.find((s) => s.attributes['http.request.method'] !== undefined)
 	}
 
 	it('does not record request headers on the span by default', async () => {
@@ -65,7 +65,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'headers-allowlist',
 					headersToSpanAttributes: {
-						requestHeaders: ['X-Allowed', 'content-type']
+						request: ['X-Allowed', 'content-type']
 					}
 				})
 			)
@@ -98,7 +98,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'headers-wildcard',
 					headersToSpanAttributes: {
-						requestHeaders: ['*']
+						request: ['*']
 					}
 				})
 			)
@@ -129,7 +129,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'resp-wildcard',
 					headersToSpanAttributes: {
-						responseHeaders: ['*']
+						response: ['*']
 					}
 				})
 			)
@@ -155,7 +155,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'user-agent-allowlist',
 					headersToSpanAttributes: {
-						requestHeaders: ['user-agent']
+						request: ['user-agent']
 					}
 				})
 			)
@@ -183,7 +183,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'cookie-allowlist',
 					headersToSpanAttributes: {
-						requestHeaders: ['cookie']
+						request: ['cookie']
 					}
 				})
 			)
@@ -209,7 +209,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'cookie-absent',
 					headersToSpanAttributes: {
-						requestHeaders: ['cookie']
+						request: ['cookie']
 					}
 				})
 			)
@@ -254,7 +254,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 				opentelemetry({
 					serviceName: 'resp-headers-allowlist',
 					headersToSpanAttributes: {
-						responseHeaders: ['x-out']
+						response: ['x-out']
 					}
 				})
 			)
