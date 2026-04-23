@@ -1,6 +1,7 @@
 {
-    "name": "@elysiajs/opentelemetry",
-    "version": "1.4.11",
+    "name": "@elysia/opentelemetry",
+    "description": "Elysia plugin to integrate OpenTelemetry",
+    "version": "1.4.12",
     "license": "MIT",
     "scripts": {
         "dev": "bun run --watch example/index.ts",
@@ -36,7 +37,7 @@
     "keywords": [
         "elysia",
         "opentelemetry",
-        "tracing"
+        "otel"
     ],
     "dependencies": {
         "@opentelemetry/api": "^1.9.0",

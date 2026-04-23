@@ -1,3 +1,9 @@
+# 1.4.12 - 24 Apr 2026
+Fix:
+- [#78](https://github.com/elysiajs/opentelemetry/pull/78) span status follows OTel HTTP semantic conventions
+- [#76](https://github.com/elysiajs/opentelemetry/pull/76) add http.server.request.duration histogram metric
+- [#74](https://github.com/elysiajs/opentelemetry/pull/74) safe-by-default span attributes — header allow-lists, URL redaction, HTTP extras opt-in
+
 # 1.4.11 - 3 Apr 2026
 Improvement:
 - [#72](https://github.com/elysiajs/opentelemetry/pull/72) skip redundant child span when lifecycle phase has single hook

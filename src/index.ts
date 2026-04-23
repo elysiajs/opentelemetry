@@ -93,10 +93,12 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 	 * Redact `userinfo` and sensitive query values in `url.full` / `url.query`.
 	 * Omitted: default redaction. `false`: record raw URLs (may leak secrets in query or credentials).
 	 */
-	spanUrlRedaction?: false | {
-		stripCredentials?: boolean
-		sensitiveQueryParams?: string[]
-	}
+	spanUrlRedaction?:
+		| false
+		| {
+				stripCredentials?: boolean
+				sensitiveQueryParams?: string[]
+		  }
 	/**
 	 * Record full request/response body content on spans.
 	 * `true`: record both request and response bodies.
@@ -111,8 +113,8 @@ export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
 	 * Default: none (no headers recorded).
 	 */
 	headersToSpanAttributes?: {
-		requestHeaders?: string[]
-		responseHeaders?: string[]
+		request?: string[]
+		response?: string[]
 	}
 }
 
@@ -181,9 +183,7 @@ const createContext = (parent: Span) => ({
 	}
 })
 
-const serializeBody = (
-	body: unknown
-): { text: string; size: number } => {
+const serializeBody = (body: unknown): { text: string; size: number } => {
 	if (body instanceof Uint8Array) return { text: '', size: body.length }
 	if (body instanceof ArrayBuffer) return { text: '', size: body.byteLength }
 	if (body instanceof Blob) return { text: '', size: body.size }
@@ -337,18 +337,25 @@ export const opentelemetry = ({
 	headersToSpanAttributes,
 	...options
 }: ElysiaOpenTelemetryOptions = {}) => {
-	const spanRequestHeaderSet = toHeaderNameSet(headersToSpanAttributes?.requestHeaders)
-	const spanResponseHeaderSet = toHeaderNameSet(headersToSpanAttributes?.responseHeaders)
+	const spanRequestHeaderSet = toHeaderNameSet(
+		headersToSpanAttributes?.request
+	)
+	const spanResponseHeaderSet = toHeaderNameSet(
+		headersToSpanAttributes?.response
+	)
 	const requestHeaderWildcard = spanRequestHeaderSet.has('*')
 	const responseHeaderWildcard = spanResponseHeaderSet.has('*')
-	const recordRequestBody = recordBody === true || (recordBody && recordBody.request) || false
-	const recordResponseBody = recordBody === true || (recordBody && recordBody.response) || false
-	const urlRedactOpts = spanUrlRedaction === false ? null : (spanUrlRedaction ?? {})
+	const recordRequestBody =
+		recordBody === true || (recordBody && recordBody.request) || false
+	const recordResponseBody =
+		recordBody === true || (recordBody && recordBody.response) || false
+	const urlRedactOpts =
+		spanUrlRedaction === false ? null : (spanUrlRedaction ?? {})
 	const sensitiveKeys = urlRedactOpts
 		? new Set([
 				...SENSITIVE_QUERY_KEYS,
-				...(urlRedactOpts.sensitiveQueryParams ?? []).map(
-					(k: string) => k.toLowerCase()
+				...(urlRedactOpts.sensitiveQueryParams ?? []).map((k: string) =>
+					k.toLowerCase()
 				)
 			])
 		: undefined
@@ -500,33 +507,35 @@ export const opentelemetry = ({
 								)
 									return
 
-							onEvent(({ name, onStop }) => {
-								const useChildSpan = total > 1
-								let span: Span
-								if (useChildSpan) {
-									span = tracer.startSpan(
-										name,
-										{},
-										createContext(event)
-									)
-									setParent(span)
-								} else {
-									setParent(event)
-									span = event
-								}
+								onEvent(({ name, onStop }) => {
+									const useChildSpan = total > 1
+									let span: Span
+									if (useChildSpan) {
+										span = tracer.startSpan(
+											name,
+											{},
+											createContext(event)
+										)
+										setParent(span)
+									} else {
+										setParent(event)
+										span = event
+									}
 
-								onStop(({ error }) => {
+									onStop(({ error }) => {
 										setParent(rootSpan)
 
-										if ((span as any).ended || (rootSpan as any).ended) return
+										if (
+											(span as any).ended ||
+											(rootSpan as any).ended
+										)
+											return
 										if (error) {
 											span.setAttributes({
 												'error.type':
-													error.constructor
-														?.name ??
+													error.constructor?.name ??
 													error.name,
-												'error.stack':
-													error.stack
+												'error.stack': error.stack
 											})
 										}
 
@@ -582,8 +591,7 @@ export const opentelemetry = ({
 						'url.full': urlFull
 					})
 
-				if (urlQuery !== undefined)
-					attributes['url.query'] = urlQuery
+				if (urlQuery !== undefined) attributes['url.query'] = urlQuery
 
 				const protocolSeparator = urlFull.indexOf('://')
 				if (protocolSeparator > 0)
@@ -690,8 +698,7 @@ export const opentelemetry = ({
 					}
 
 					const userAgent = request.headers.get('User-Agent')
-					if (userAgent)
-						attributes['user_agent.original'] = userAgent
+					if (userAgent) attributes['user_agent.original'] = userAgent
 
 					const server = context.server
 					if (server) {
@@ -724,7 +731,11 @@ export const opentelemetry = ({
 							key = key.toLowerCase()
 
 							if (hasHeaders) {
-								if (!requestHeaderWildcard && !spanRequestHeaderSet.has(key)) continue
+								if (
+									!requestHeaderWildcard &&
+									!spanRequestHeaderSet.has(key)
+								)
+									continue
 
 								if (typeof value === 'object')
 									// Handle Set-Cookie array
@@ -742,13 +753,19 @@ export const opentelemetry = ({
 
 								headers[key] = serialized
 
-								if (requestHeaderWildcard || spanRequestHeaderSet.has(key))
+								if (
+									requestHeaderWildcard ||
+									spanRequestHeaderSet.has(key)
+								)
 									attributes[`http.request.header.${key}`] =
 										serialized
 							} else if (value !== undefined) {
 								headers[key] = value
 
-								if (requestHeaderWildcard || spanRequestHeaderSet.has(key))
+								if (
+									requestHeaderWildcard ||
+									spanRequestHeaderSet.has(key)
+								)
 									attributes[`http.request.header.${key}`] =
 										value
 							}
@@ -768,7 +785,11 @@ export const opentelemetry = ({
 
 						for (let [key, value] of headers) {
 							key = key.toLowerCase()
-							if (!responseHeaderWildcard && !spanResponseHeaderSet.has(key)) continue
+							if (
+								!responseHeaderWildcard &&
+								!spanResponseHeaderSet.has(key)
+							)
+								continue
 
 							if (typeof value === 'object')
 								attributes[`http.response.header.${key}`] =
@@ -799,7 +820,11 @@ export const opentelemetry = ({
 					}
 
 					// ? Elysia Custom attribute (opt-in: requestHeaders includes `cookie`)
-					if ((requestHeaderWildcard || spanRequestHeaderSet.has('cookie')) && cookie) {
+					if (
+						(requestHeaderWildcard ||
+							spanRequestHeaderSet.has('cookie')) &&
+						cookie
+					) {
 						const _cookie = <Record<string, string>>{}
 
 						for (const [key, { value }] of Object.entries(cookie))
@@ -814,7 +839,11 @@ export const opentelemetry = ({
 
 				onParse(() => {
 					const body = context.body
-					if (body === undefined || body === null || !recordRequestBody)
+					if (
+						body === undefined ||
+						body === null ||
+						!recordRequestBody
+					)
 						return
 
 					const { text, size } = serializeBody(body)
@@ -891,10 +920,7 @@ export const opentelemetry = ({
 						const statusCode =
 							attributes['http.response.status_code']
 
-						if (
-							typeof statusCode === 'number' &&
-							statusCode >= 500
-						)
+						if (typeof statusCode === 'number' && statusCode >= 500)
 							rootSpan.setStatus({
 								code: SpanStatusCode.ERROR
 							})
