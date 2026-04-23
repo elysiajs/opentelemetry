@@ -1,7 +1,12 @@
 import { Elysia } from 'elysia'
 import { opentelemetry } from '../src'
-import { describe, expect, it } from 'bun:test'
-import { trace } from '@opentelemetry/api'
+import { describe, expect, it, beforeAll, beforeEach } from 'bun:test'
+import { trace, SpanStatusCode } from '@opentelemetry/api'
+import {
+	InMemorySpanExporter,
+	SimpleSpanProcessor,
+	NodeTracerProvider
+} from '@opentelemetry/sdk-trace-node'
 import { req } from './test-setup'
 
 describe('Error Handling with OpenTelemetry', () => {
@@ -228,5 +233,49 @@ describe('Error Handling with OpenTelemetry', () => {
 		expect(errorType).toBe('CUSTOM_ERROR')
 		const body = await response.json()
 		expect(body.customError).toBe('Custom error occurred')
+	})
+})
+
+/**
+ * @see https://github.com/elysiajs/opentelemetry/issues/77
+ */
+describe('Span status follows OTel HTTP semantic conventions (#77)', () => {
+	const exporter = new InMemorySpanExporter()
+	const provider = new NodeTracerProvider({
+		spanProcessors: [new SimpleSpanProcessor(exporter)]
+	})
+
+	beforeAll(() => {
+		provider.register()
+	})
+
+	beforeEach(() => {
+		exporter.reset()
+	})
+
+	const waitForSpans = () =>
+		new Promise((resolve) => setTimeout(resolve, 200))
+
+	it('should NOT set span status ERROR when onError downgrades to 4xx', async () => {
+		const app = new Elysia()
+			.use(opentelemetry({ serviceName: 'semconv-downgrade-test' }))
+			.onError(({ error, set }) => {
+				set.status = 422
+				return { error: error.message }
+			})
+			.get('/unprocessable', () => {
+				throw new Error('Validation failed')
+			})
+
+		const response = await app.handle(req('/unprocessable'))
+		expect(response.status).toBe(422)
+
+		await waitForSpans()
+		const spans = exporter.getFinishedSpans()
+
+		const errorSpans = spans.filter(
+			(s) => s.status.code === SpanStatusCode.ERROR
+		)
+		expect(errorSpans).toHaveLength(0)
 	})
 })
