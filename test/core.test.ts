@@ -28,6 +28,32 @@ describe('Core OpenTelemetry Plugin', () => {
 		}
 	})
 
+	it('should not start tracing when disabled', async () => {
+		trace.disable()
+
+		let activeSpan: unknown
+		const app = new Elysia()
+			.use(
+				opentelemetry({
+					enabled: false,
+					serviceName: 'disabled-test'
+				})
+			)
+			.get('/disabled', () => {
+				activeSpan = trace.getActiveSpan()
+
+				return 'ok'
+			})
+
+		expect(shouldStartNodeSDK(trace.getTracerProvider())).toBe(true)
+
+		const response = await app.handle(req('/disabled'))
+
+		expect(response.status).toBe(200)
+		expect(await response.text()).toBe('ok')
+		expect(activeSpan).toBeUndefined()
+	})
+
 	it('should initialize plugin without options', () => {
 		expect(typeof opentelemetry).toBe('function')
 
