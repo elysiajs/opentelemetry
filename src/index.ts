@@ -82,6 +82,11 @@ type OpenTeleMetryOptions = NonNullable<
  * however, this is a simple way to initialize OpenTelemetry SDK
  */
 export interface ElysiaOpenTelemetryOptions extends OpenTeleMetryOptions {
+	/**
+	 * Toggle the plugin without branching application composition.
+	 * `false`: return an inert Elysia plugin and skip SDK/span setup.
+	 */
+	enabled?: boolean
 	contextManager?: ContextManager
 	/**
 	 * Optional function to determine whether a given request should be traced.
@@ -329,6 +334,7 @@ export const setAttributes = (attributes: Attributes) =>
 	!!getCurrentSpan()?.setAttributes(attributes)
 
 export const opentelemetry = ({
+	enabled = true,
 	serviceName = 'Elysia',
 	instrumentations,
 	contextManager,
@@ -338,6 +344,8 @@ export const opentelemetry = ({
 	headersToSpanAttributes,
 	...options
 }: ElysiaOpenTelemetryOptions = {}) => {
+	if (!enabled) return new Elysia({ name: '@elysia/opentelemetry' })
+
 	const spanRequestHeaderSet = toHeaderNameSet(
 		headersToSpanAttributes?.request
 	)
