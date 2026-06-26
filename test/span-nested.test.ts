@@ -8,7 +8,7 @@ describe('Nested Spans', () => {
 	const diagError = spyOn(diag, 'error')
 
 	beforeEach(() => {
-		diagError.mockRestore()
+		diagError.mockClear()
 	})
 
 	it('should not call end() twice on nested record() spans', async () => {
