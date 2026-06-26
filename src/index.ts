@@ -136,7 +136,7 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 				// @ts-ignore
 				return Promise.resolve(result).then(
 					(value) => {
-						span.end()
+						if (span.isRecording()) span.end()
 						return value
 					},
 					(rejectResult) => {
@@ -151,12 +151,12 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 						})
 
 						span.recordException(rejectResult)
-						span.end()
+						if (span.isRecording()) span.end()
 						throw rejectResult
 					}
 				)
 
-			span.end()
+			if (span.isRecording()) span.end()
 			return result
 		} catch (error) {
 			const err = error as Error
@@ -166,7 +166,7 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 				message: err?.message
 			})
 			span.recordException(err)
-			span.end()
+			if (span.isRecording()) span.end()
 
 			throw error
 		}
