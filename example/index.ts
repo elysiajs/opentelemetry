@@ -83,20 +83,15 @@ const app = new Elysia()
 			]
 		})
 	)
-	.error({
-		NAGISA_ERROR: NagisaError
+	.error(NagisaError, function () {
+		return 'An error occurred'
 	})
-	.onError([
-		function handleCustomError({ code }) {
-			if (code === 'NAGISA_ERROR') return 'An error occurred'
-		},
-		function handleUnknownError({ code }) {
-			if (code === 'UNKNOWN') return 'An error occurred'
-		}
-	])
+	.error(function handleUnknownError() {
+		return 'An error occurred'
+	})
 	.trace(({ onAfterResponse }) => {
 		onAfterResponse(() => {
-			console.log("A")
+			console.log('A')
 		})
 	})
 	.get('/stream', async function* () {
@@ -106,7 +101,7 @@ const app = new Elysia()
 			await Bun.sleep(3)
 		}
 	})
-	.onBeforeHandle([
+	.beforeHandle([
 		async function isSignIn() {
 			const span1 = startSpan('a.sleep.0')
 			await Bun.sleep(50)
@@ -124,6 +119,17 @@ const app = new Elysia()
 	])
 	.post(
 		'/id/:id',
+		{
+			async afterHandle({ response }) {
+				await Bun.sleep(25)
+
+				if (response === 'Hello Elysia')
+					return new NagisaError('Where teapot?')
+			},
+			body: t.Object({
+				name: t.String()
+			})
+		},
 		async ({ query }) => {
 			setAttributes({ hello: 'world' })
 
@@ -136,17 +142,6 @@ const app = new Elysia()
 					return 'Hello Elysia'
 				}
 			)
-		},
-		{
-			async afterHandle({ response }) {
-				await Bun.sleep(25)
-
-				if (response === 'Hello Elysia')
-					return new NagisaError('Where teapot?')
-			},
-			body: t.Object({
-				name: t.String()
-			})
 		}
 	)
 	.get('/context', async () => {

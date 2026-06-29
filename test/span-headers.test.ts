@@ -133,7 +133,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 					}
 				})
 			)
-			.onRequest(({ set }) => {
+			.request(({ set }) => {
 				set.headers['X-Out'] = 'seen'
 				set.headers['X-Secret'] = 'also-seen'
 			})
@@ -228,7 +228,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 	it('does not record response headers on the span by default', async () => {
 		const app = new Elysia()
 			.use(opentelemetry({ serviceName: 'no-response-headers-default' }))
-			.onRequest(({ set }) => {
+			.request(({ set }) => {
 				set.headers['Set-Cookie'] = 'session=abc; HttpOnly'
 				set.headers['X-Custom-Resp'] = 'sensitive'
 			})
@@ -258,7 +258,7 @@ describe('Span header attributes (opt-in allow-list)', () => {
 					}
 				})
 			)
-			.onRequest(({ set }) => {
+			.request(({ set }) => {
 				set.headers['X-Out'] = 'seen'
 				set.headers['X-Hidden'] = 'secret'
 			})

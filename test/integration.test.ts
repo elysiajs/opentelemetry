@@ -189,7 +189,7 @@ describe('Elysia Integration', () => {
 					serviceName: 'middleware-test'
 				})
 			)
-			.onBeforeHandle(() => {
+			.beforeHandle(() => {
 				middlewareCalled = true
 				try {
 					middlewareSpanData = captureSpanData('middleware-before')

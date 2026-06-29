@@ -50,7 +50,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'error-with-handler-test' }))
-			.onError(({ error }) => {
+			.error(({ error }) => {
 				errorHandlerCalled = true
 				return {
 					error:
@@ -91,7 +91,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'error-details-test' }))
-			.onError(({ error }) => {
+			.error(({ error }) => {
 				errorHandlerCalled = true
 				const span = trace.getActiveSpan()
 				if (span) {
@@ -124,10 +124,10 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'multiple-handlers-test' }))
-			.onError(({ code }) => {
+			.error(() => {
 				firstHandlerCalled = true
 			})
-			.onError(({ error }) => {
+			.error(({ error }) => {
 				secondHandlerCalled = true
 				const span = trace.getActiveSpan()
 				if (span) rootSpanId = span.spanContext().spanId
@@ -157,7 +157,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'async-error-test' }))
-			.onError(({ error }) => {
+			.error(({ error }) => {
 				errorHandlerCalled = true
 				return {
 					error:
@@ -200,18 +200,14 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'custom-error-test' }))
-			.error({
-				CUSTOM_ERROR: CustomError
-			})
-			.onError(({ error, code }) => {
+			.error(({ error }) => {
 				errorHandlerCalled = true
-				errorType = String(code)
-				if (code === 'CUSTOM_ERROR') {
+				// Elysia 2 no longer exposes `code` on the error context;
+				// identify the custom error by instance instead.
+				if (error instanceof CustomError) {
+					errorType = 'CUSTOM_ERROR'
 					return {
-						customError:
-							error instanceof Error
-								? error.message
-								: String(error)
+						customError: error.message
 					}
 				}
 				return {
@@ -259,7 +255,7 @@ describe('Span status follows OTel HTTP semantic conventions (#77)', () => {
 	it('should NOT set span status ERROR when onError downgrades to 4xx', async () => {
 		const app = new Elysia()
 			.use(opentelemetry({ serviceName: 'semconv-downgrade-test' }))
-			.onError(({ error, set }) => {
+			.error(({ error, set }) => {
 				set.status = 422
 				return { error: error.message }
 			})

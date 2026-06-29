@@ -420,8 +420,8 @@ export const opentelemetry = ({
 			unit: 's',
 			advice: {
 				explicitBucketBoundaries: [
-					0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75,
-					1, 2.5, 5, 7.5, 10, 30, 60, 120, 300, 600, 900, 1800
+					0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1,
+					2.5, 5, 7.5, 10, 30, 60, 120, 300, 600, 900, 1800
 				]
 			}
 		}
@@ -430,36 +430,35 @@ export const opentelemetry = ({
 	return new Elysia({
 		name: '@elysia/opentelemetry'
 	})
-		.wrap((fn, request) => {
-			const shouldTrace = checkIfShouldTrace
-				? checkIfShouldTrace(request)
-				: true
+		.wrap((fn) => {
+			return (request) => {
+				const shouldTrace = checkIfShouldTrace
+					? checkIfShouldTrace(request)
+					: true
 
-			if (!shouldTrace) return fn
+				if (!shouldTrace) return fn(request)
 
-			const headers = headerHasToJSON
-				? // @ts-ignore bun only
-					request.headers.toJSON()
-				: Object.fromEntries(request.headers.entries())
+				const headers = headerHasToJSON
+					? // @ts-ignore bun only
+						request.headers.toJSON()
+					: Object.fromEntries(request.headers.entries())
 
-			const ctx = propagation.extract(otelContext.active(), headers)
+				const ctx = propagation.extract(otelContext.active(), headers)
 
-			return tracer.startActiveSpan(
-				'Root',
-				{ kind: SpanKind.SERVER },
-				ctx,
-				(rootSpan) => {
-					const spanContext = trace.setSpan(ctx, rootSpan)
-					// Execute fn within the span's context using with() instead of bind()
-					// This ensures proper cleanup when the function completes or errors
-					return (...args: any[]) => {
-						return otelContext.with(spanContext, () => fn(...args))
+				return tracer.startActiveSpan(
+					'Root',
+					{ kind: SpanKind.SERVER },
+					ctx,
+					(rootSpan) => {
+						const spanContext = trace.setSpan(ctx, rootSpan)
+
+						return otelContext.with(spanContext, () => fn(request))
 					}
-				}
-			)
+				)
+			}
 		})
 		.trace(
-			{ as: 'global' },
+			'global',
 			({
 				id,
 				onRequest,
@@ -570,11 +569,10 @@ export const opentelemetry = ({
 					}
 				}
 
-				// @ts-expect-error private property
-				const rawUrl: string = context.url
-				// @ts-expect-error private property
+				const rawUrl: string = context.request.url
 				const qi: number | undefined = context.qi
 				const hasQuery = qi !== undefined && qi !== -1
+
 				let urlQuery = hasQuery ? rawUrl.slice(qi + 1) : undefined
 				let urlFull = rawUrl
 
@@ -625,11 +623,11 @@ export const opentelemetry = ({
 
 					const durationS =
 						(performance.now() - requestStartTime) / 1000
-					const statusCode =
-						attributes['http.response.status_code']
+					const statusCode = attributes['http.response.status_code']
 
 					const metricAttributes = {
-						'http.request.method': attributes['http.request.method'] ?? method,
+						'http.request.method':
+							attributes['http.request.method'] ?? method,
 						'url.scheme': attributes['url.scheme'],
 						'http.response.status_code': statusCode,
 						'http.route': attributes['http.route']
@@ -681,7 +679,7 @@ export const opentelemetry = ({
 							let status = context.set.status
 
 							if (typeof status === 'string') {
-								status = StatusMap[status]
+								status = StatusMap[status as keyof typeof StatusMap]
 							} else if (
 								typeof status !== 'number' &&
 								// @ts-ignore
@@ -701,27 +699,17 @@ export const opentelemetry = ({
 
 							rootSpan.setAttributes(attributes)
 						}
-
-						if (
-							// @ts-ignore
-							!rootSpan.ended
-						) {
-							recordDuration()
-							rootSpan.end()
-						}
 					})
 				})
 				onMapResponse(inspect('MapResponse'))
 				onTransform(() => {
 					const { cookie, request, route, path } = context
 
-					if (route)
-						rootSpan.updateName(
-							// @ts-ignore private property
-							`${method} ${route || path}`
-						)
+					// Elysia 2: `route` is only set for dynamic routes; static routes fall back to `path`
+					const routeName = route ?? path
 
-					if (context.route) attributes['http.route'] = context.route
+					rootSpan.updateName(`${method} ${routeName}`)
+					attributes['http.route'] = routeName
 
 					/**
 					 * ? Caution: This is not a standard way to get content-length
@@ -843,9 +831,8 @@ export const opentelemetry = ({
 						}
 					}
 
-					// @ts-expect-error available on Elysia IP plugin
+					// available on Elysia IP plugin
 					if (context.ip)
-						// @ts-expect-error
 						attributes['client.address'] = context.ip
 					else {
 						const ip =
@@ -870,7 +857,9 @@ export const opentelemetry = ({
 					) {
 						const _cookie = <Record<string, string>>{}
 
-						for (const [key, { value }] of Object.entries(cookie))
+						for (const [key, { value }] of Object.entries(
+							cookie
+						) as [string, { value: unknown }][])
 							_cookie[key] = JSON.stringify(value)
 
 						attributes['http.request.cookie'] =
@@ -909,7 +898,8 @@ export const opentelemetry = ({
 					{
 						let status = context.set.status ?? 200
 						if (typeof status === 'string')
-							status = StatusMap[status] ?? 200
+							status =
+								StatusMap[status as keyof typeof StatusMap] ?? 200
 
 						attributes['http.response.status_code'] = status
 					}
@@ -943,7 +933,8 @@ export const opentelemetry = ({
 					{
 						let status = context.set.status ?? 200
 						if (typeof status === 'string')
-							status = StatusMap[status] ?? 200
+							status =
+								StatusMap[status as keyof typeof StatusMap] ?? 200
 
 						attributes['http.response.status_code'] = status
 					}
