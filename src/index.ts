@@ -1,4 +1,5 @@
 import { Elysia, type TraceEvent, type TraceProcess, StatusMap } from 'elysia'
+import { trace as elysiaTrace } from 'elysia/trace'
 import {
 	trace,
 	metrics,
@@ -430,6 +431,7 @@ export const opentelemetry = ({
 	return new Elysia({
 		name: '@elysia/opentelemetry'
 	})
+		.use(elysiaTrace())
 		.wrap((fn) => {
 			return (request) => {
 				const shouldTrace = checkIfShouldTrace
