@@ -1,21 +1,12 @@
 import { Elysia, t } from 'elysia'
-import { treaty } from '@elysiajs/eden'
+import { treaty } from '@elysia/eden'
 
-import {
-	getCurrentSpan,
-	getTracer,
-	opentelemetry,
-	setAttributes,
-	startSpan
-} from '../src'
+import { getTracer, opentelemetry, setAttributes, startSpan } from '../src'
 import * as otel from '@opentelemetry/api'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
-import {
-	BatchSpanProcessor,
-	ConsoleSpanExporter
-} from '@opentelemetry/sdk-trace-node'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node'
 
-import { yoga } from '@elysiajs/graphql-yoga'
+import { yoga } from '@elysia/graphql-yoga'
 import { useOpenTelemetry } from '@envelop/opentelemetry'
 
 export const typeDefs = /* GraphQL */ `

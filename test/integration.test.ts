@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { treaty } from '@elysiajs/eden'
+import { treaty } from '@elysia/eden'
 import { opentelemetry } from '../src'
 import { describe, expect, it } from 'bun:test'
 import { trace } from '@opentelemetry/api'

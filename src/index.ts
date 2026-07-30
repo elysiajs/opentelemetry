@@ -1,5 +1,9 @@
-import { Elysia, type TraceEvent, type TraceProcess, StatusMap } from 'elysia'
-import { trace as elysiaTrace } from 'elysia/trace'
+import { Elysia, StatusMap } from 'elysia'
+import {
+	trace as elysiaTrace,
+	type TraceEvent,
+	type TraceProcess
+} from 'elysia/trace'
 import {
 	trace,
 	metrics,
@@ -681,7 +685,8 @@ export const opentelemetry = ({
 							let status = context.set.status
 
 							if (typeof status === 'string') {
-								status = StatusMap[status as keyof typeof StatusMap]
+								status =
+									StatusMap[status as keyof typeof StatusMap]
 							} else if (
 								typeof status !== 'number' &&
 								// @ts-ignore
@@ -834,8 +839,7 @@ export const opentelemetry = ({
 					}
 
 					// available on Elysia IP plugin
-					if (context.ip)
-						attributes['client.address'] = context.ip
+					if (context.ip) attributes['client.address'] = context.ip
 					else {
 						const ip =
 							headers['true-client-ip'] ??
@@ -901,7 +905,8 @@ export const opentelemetry = ({
 						let status = context.set.status ?? 200
 						if (typeof status === 'string')
 							status =
-								StatusMap[status as keyof typeof StatusMap] ?? 200
+								StatusMap[status as keyof typeof StatusMap] ??
+								200
 
 						attributes['http.response.status_code'] = status
 					}
@@ -936,7 +941,8 @@ export const opentelemetry = ({
 						let status = context.set.status ?? 200
 						if (typeof status === 'string')
 							status =
-								StatusMap[status as keyof typeof StatusMap] ?? 200
+								StatusMap[status as keyof typeof StatusMap] ??
+								200
 
 						attributes['http.response.status_code'] = status
 					}
