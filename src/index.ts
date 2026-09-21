@@ -172,17 +172,8 @@ const createActiveSpanHandler = (fn: (span: Span) => unknown) =>
 		}
 	}
 
-const createContext = (parent: Span) => ({
-	getValue() {
-		return parent
-	},
-	setValue() {
-		return otelContext.active()
-	},
-	deleteValue() {
-		return otelContext.active()
-	}
-})
+const createContext = (parent: Span) =>
+	trace.setSpan(otelContext.active(), parent)
 
 const serializeBody = (body: unknown): { text: string; size: number } => {
 	if (body instanceof Uint8Array) return { text: '', size: body.length }
