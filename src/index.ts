@@ -602,14 +602,13 @@ export const opentelemetry = ({
 					}
 				}
 
-				const attributes: Record<string, string | number> =
-					Object.assign(Object.create(null), {
-						// ? Elysia Custom attribute
-						'http.request.id': id,
-						'http.request.method': method,
-						'url.path': path,
-						'url.full': urlFull
-					})
+				const attributes: Record<string, string | number> = {
+					// ? Elysia Custom attribute
+					'http.request.id': id,
+					'http.request.method': method,
+					'url.path': path,
+					'url.full': urlFull
+				}
 
 				if (urlQuery !== undefined) attributes['url.query'] = urlQuery
 

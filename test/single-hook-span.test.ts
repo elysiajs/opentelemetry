@@ -10,7 +10,7 @@ describe('Single hook span optimization', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'single-hook-test' }))
-			.beforeHandle(function singleHook() {
+			.onBeforeHandle(function singleHook() {
 				const span = trace.getActiveSpan()
 				if (span) {
 					// In the single-hook path, the active span should be
@@ -38,7 +38,7 @@ describe('Single hook span optimization', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'multi-hook-test' }))
-			.beforeHandle(function hookA() {
+			.onBeforeHandle(function hookA() {
 				const span = trace.getActiveSpan()
 				if (span) {
 					spanNames.push(
@@ -47,7 +47,7 @@ describe('Single hook span optimization', () => {
 					)
 				}
 			})
-			.beforeHandle(function hookB() {
+			.onBeforeHandle(function hookB() {
 				const span = trace.getActiveSpan()
 				if (span) {
 					spanNames.push(
@@ -72,7 +72,7 @@ describe('Single hook span optimization', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'single-hook-trace-test' }))
-			.beforeHandle(function singleHook() {
+			.onBeforeHandle(function singleHook() {
 				const span = trace.getActiveSpan()
 				if (span) traceId = span.spanContext().traceId
 			})
@@ -90,10 +90,10 @@ describe('Single hook span optimization', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'single-hook-error-test' }))
-			.beforeHandle(function failingHook() {
+			.onBeforeHandle(function failingHook() {
 				throw new Error('hook failed')
 			})
-			.error(({ error }) => {
+			.onError(({ error }) => {
 				errorHandlerCalled = true
 				return {
 					error:

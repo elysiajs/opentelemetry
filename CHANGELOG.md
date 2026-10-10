@@ -1,3 +1,11 @@
+# 2.0.0-beta.2 - 11 Oct 2026
+Improvement:
+- per-request span attributes use a plain object instead of `Object.create(null)` (dictionary mode on V8, ~3x slower to build)
+
+# 2.0.0-beta.1 - 30 Jul 2026
+Change:
+- Add support for Elysia 2.0
+
 # 1.4.12 - 24 Apr 2026
 Feature:
 - [#76](https://github.com/elysiajs/opentelemetry/pull/76) add http.server.request.duration histogram metric

@@ -74,10 +74,10 @@ const app = new Elysia()
 			]
 		})
 	)
-	.error(NagisaError, function () {
+	.onError(NagisaError, function () {
 		return 'An error occurred'
 	})
-	.error(function handleUnknownError() {
+	.onError(function handleUnknownError() {
 		return 'An error occurred'
 	})
 	.trace(({ onAfterResponse }) => {
@@ -92,7 +92,7 @@ const app = new Elysia()
 			await Bun.sleep(3)
 		}
 	})
-	.beforeHandle([
+	.onBeforeHandle([
 		async function isSignIn() {
 			const span1 = startSpan('a.sleep.0')
 			await Bun.sleep(50)

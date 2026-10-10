@@ -50,7 +50,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'error-with-handler-test' }))
-			.error(({ error }) => {
+			.onError(({ error }) => {
 				errorHandlerCalled = true
 				return {
 					error:
@@ -91,7 +91,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'error-details-test' }))
-			.error(({ error }) => {
+			.onError(({ error }) => {
 				errorHandlerCalled = true
 				const span = trace.getActiveSpan()
 				if (span) {
@@ -124,10 +124,10 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'multiple-handlers-test' }))
-			.error(() => {
+			.onError(() => {
 				firstHandlerCalled = true
 			})
-			.error(({ error }) => {
+			.onError(({ error }) => {
 				secondHandlerCalled = true
 				const span = trace.getActiveSpan()
 				if (span) rootSpanId = span.spanContext().spanId
@@ -157,7 +157,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'async-error-test' }))
-			.error(({ error }) => {
+			.onError(({ error }) => {
 				errorHandlerCalled = true
 				return {
 					error:
@@ -200,7 +200,7 @@ describe('Error Handling with OpenTelemetry', () => {
 
 		const testApp = new Elysia()
 			.use(opentelemetry({ serviceName: 'custom-error-test' }))
-			.error(({ error }) => {
+			.onError(({ error }) => {
 				errorHandlerCalled = true
 				// Elysia 2 no longer exposes `code` on the error context;
 				// identify the custom error by instance instead.
@@ -255,7 +255,7 @@ describe('Span status follows OTel HTTP semantic conventions (#77)', () => {
 	it('should NOT set span status ERROR when onError downgrades to 4xx', async () => {
 		const app = new Elysia()
 			.use(opentelemetry({ serviceName: 'semconv-downgrade-test' }))
-			.error(({ error, set }) => {
+			.onError(({ error, set }) => {
 				set.status = 422
 				return { error: error.message }
 			})
