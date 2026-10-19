@@ -1,3 +1,8 @@
+
+# 2.0.0-rc.0 - 20 Oct 2026
+Change:
+- Add support for Elysia 2.0
+
 # 2.0.0-beta.2 - 11 Oct 2026
 Improvement:
 - per-request span attributes use a plain object instead of `Object.create(null)` (dictionary mode on V8, ~3x slower to build)
